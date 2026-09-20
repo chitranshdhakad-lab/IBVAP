@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/assets/emblem-small.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>IBVAP — Intelligent Border Video Analysis Platform</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('ibvap_theme') || 'dark';
+          var isDark = (t === 'dark' || t === 'tactical-dark');
+          var cssTheme = isDark ? 'tactical-dark' : (t === 'night-ops' ? 'night-ops' : (t === 'high-contrast' ? 'high-contrast' : 'tactical-light'));
+          var generic = isDark ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', cssTheme);
+          document.documentElement.setAttribute('data-mode', generic);
+          document.documentElement.className = 'theme-' + cssTheme + ' theme-' + generic;
+        } catch(e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
