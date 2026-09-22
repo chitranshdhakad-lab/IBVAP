@@ -197,18 +197,27 @@ export default function OperatorsTab() {
   const clearance = currentOperator?.role ? ROLE_CLEARANCE_MAP[currentOperator.role] : null;
   const isCommanderOrAdmin = currentOperator?.role === 'Shift Commander' || currentOperator?.role === 'Base Administrator';
 
+  const getOperatorInitials = (name, username) => {
+    const source = name || username || 'DO';
+    const parts = source.trim().split(/\s+/);
+    if (parts.length >= 2 && parts[0] && parts[1]) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return source.slice(0, 2).toUpperCase();
+  };
+
   return (
     <div className="gov-admin-container">
-      {/* Official Government Border Security Banner */}
+      {/* Official Executive Border Security Banner */}
       <div className="gov-admin-header-strip">
         <div className="gov-header-left">
           <div className="gov-seal-box">
-            <Shield size={26} className="text-amber-400" />
+            <Shield size={24} className="text-amber-400" />
           </div>
           <div>
             <div className="gov-title-row">
-              <h2 className="gov-title-text">BORDER POST SURVEILLANCE CORPS // PERSONNEL ADMINISTRATION</h2>
-              <span className="gov-class-badge">RESTRICTED // LAW ENFORCEMENT</span>
+              <h2 className="gov-title-text">Border Post Surveillance Corps • Personnel Administration</h2>
+              <span className="gov-class-badge">Restricted • Law Enforcement</span>
             </div>
             <p className="gov-desc-text">
               Official access control ledger, cryptographic credential issuance, duty roster, and operational clearance management.
@@ -216,14 +225,14 @@ export default function OperatorsTab() {
           </div>
         </div>
 
-        <div className="gov-header-metrics font-mono">
+        <div className="gov-header-metrics">
           <div className="gov-metric-item">
             <span className="gov-metric-val">{operators.length}</span>
-            <span className="gov-metric-lbl">REGISTERED PERSONNEL</span>
+            <span className="gov-metric-lbl">Registered Officers</span>
           </div>
           <div className="gov-metric-item">
             <span className="gov-metric-val text-emerald">1</span>
-            <span className="gov-metric-lbl">ACTIVE ON DUTY</span>
+            <span className="gov-metric-lbl">Active on Duty</span>
           </div>
           <button
             type="button"
@@ -238,12 +247,12 @@ export default function OperatorsTab() {
         </div>
       </div>
 
-      {/* SECTION 1: ACTIVE OPERATOR DUTY SESSION CARD (DYNAMIC PER USER) */}
+      {/* SECTION 1: ACTIVE OPERATOR DUTY SESSION CARD */}
       <div className="gov-active-duty-card">
         <div className="duty-card-header">
           <div className="duty-header-badge">
             <span className="duty-pulse-dot" />
-            <span className="duty-header-title font-mono">ACTIVE WORKSTATION SESSION // ON DUTY</span>
+            <span className="duty-header-title">Active Workstation Duty Session</span>
           </div>
           <div className="duty-header-actions">
             <button
@@ -265,7 +274,7 @@ export default function OperatorsTab() {
               title="Authenticate and switch duty operator"
             >
               <KeyRound size={13} />
-              <span>Switch Duty Officer (Auth Required)</span>
+              <span>Switch Duty Officer</span>
             </button>
           </div>
         </div>
@@ -273,15 +282,15 @@ export default function OperatorsTab() {
         <div className="duty-card-body">
           {/* Officer Avatar & Identity */}
           <div className="duty-officer-main">
-            <div className="duty-avatar-box">
-              <User size={30} color="#38bdf8" />
+            <div className="exec-avatar-large" style={{ width: '56px', height: '56px', fontSize: '18px' }}>
+              {getOperatorInitials(currentOperator.full_name, currentOperator.username)}
             </div>
             <div className="duty-officer-meta">
               <div className="duty-officer-name">{currentOperator.full_name}</div>
-              <div className="duty-officer-sub font-mono">
-                <span className="duty-badge-id">BADGE: {currentOperator.badge_number}</span>
+              <div className="duty-officer-sub">
+                <span className="duty-badge-id">Badge: {currentOperator.badge_number}</span>
                 <span>•</span>
-                <span className="duty-callsign">CALLSIGN: {currentOperator.callsign}</span>
+                <span className="duty-callsign">{currentOperator.callsign}</span>
                 <span>•</span>
                 <span className="duty-login">@{currentOperator.username}</span>
               </div>
@@ -294,24 +303,24 @@ export default function OperatorsTab() {
           </div>
 
           {/* Dynamic Duty Metrics Grid */}
-          <div className="duty-metrics-grid font-mono">
+          <div className="duty-metrics-grid">
             <div className="duty-metric-box">
-              <span className="metric-title">STATIONED OUTPOST</span>
+              <span className="metric-title">Stationed Outpost</span>
               <span className="metric-val text-amber-300">📍 {currentOperator.bop_sector}</span>
             </div>
 
             <div className="duty-metric-box">
-              <span className="metric-title">PRIMARY OPTICAL FEED</span>
+              <span className="metric-title">Primary Optical Feed</span>
               <span className="metric-val text-sky-400">📹 {currentOperator.assigned_camera || 'CAM-01'}</span>
             </div>
 
             <div className="duty-metric-box">
-              <span className="metric-title">WORKSTATION TERMINAL</span>
+              <span className="metric-title">Workstation Terminal</span>
               <span className="metric-val">{currentOperator.terminal_id}</span>
             </div>
 
             <div className="duty-metric-box">
-              <span className="metric-title">DUTY SESSION UPTIME</span>
+              <span className="metric-title">Duty Session Uptime</span>
               <span className="metric-val text-emerald">{dutyUptime}</span>
             </div>
           </div>
@@ -319,13 +328,13 @@ export default function OperatorsTab() {
 
         {/* Dynamic Operator Shift Activity Logs */}
         <div className="duty-activity-timeline">
-          <div className="timeline-title-row font-mono">
-            <Activity size={13} className="text-emerald" />
-            <span>OPERATIONAL ACTIVITY LOG // OFFICER: {currentOperator.callsign}</span>
+          <div className="timeline-title-row">
+            <Activity size={14} className="text-emerald" />
+            <span>Operational Activity Log • {currentOperator.full_name || currentOperator.callsign}</span>
           </div>
           <div className="timeline-items-row">
             {dutyLogs.slice(0, 3).map((log) => (
-              <div key={log.id} className="timeline-card font-mono">
+              <div key={log.id} className="timeline-card">
                 <div className="timeline-time">{log.time}</div>
                 <div className="timeline-action">{log.action}</div>
                 <div className="timeline-desc">{log.description}</div>
@@ -342,27 +351,26 @@ export default function OperatorsTab() {
           <div className="panel-gov-header">
             <div className="panel-gov-title">
               <ShieldCheck size={16} color="#38bdf8" />
-              <span>AUTHORIZED PERSONNEL LEDGER</span>
+              <span>Authorized Personnel Ledger</span>
             </div>
-            <span className="panel-gov-tag font-mono">{operators.length} REGISTERED</span>
+            <span className="panel-gov-tag">{operators.length} Registered</span>
           </div>
 
           <div className="gov-table-wrapper">
-            <table className="gov-personnel-table font-mono">
+            <table className="gov-personnel-table">
               <thead>
                 <tr>
-                  <th>STATUS</th>
-                  <th>BADGE & NAME</th>
-                  <th>CALLSIGN / ROLE</th>
-                  <th>STATIONED POST</th>
-                  <th>PRIMARY FEED</th>
-                  <th>SESSION CONTROLS</th>
+                  <th>Status</th>
+                  <th>Badge & Officer Name</th>
+                  <th>Role / Callsign</th>
+                  <th>Stationed Outpost</th>
+                  <th>Primary Feed</th>
+                  <th>Session Controls</th>
                 </tr>
               </thead>
               <tbody>
                 {operators.map((op) => {
                   const isCurrent = op.username === currentOperator.username;
-                  const opClearance = ROLE_CLEARANCE_MAP[op.role] || ROLE_CLEARANCE_MAP['Tactical Operator'];
                   const primaryFeed = SECTOR_CAMERA_MAP[op.bop_sector] || 'CAM-01';
 
                   return (
@@ -406,7 +414,7 @@ export default function OperatorsTab() {
                               title={`Authenticate with password to switch to ${op.full_name}`}
                             >
                               <KeyRound size={12} />
-                              <span>Auth & Switch</span>
+                              <span>Switch</span>
                             </button>
                           )}
 
@@ -435,9 +443,9 @@ export default function OperatorsTab() {
           <div className="panel-gov-header">
             <div className="panel-gov-title">
               <UserPlus size={16} color="#10b981" />
-              <span>PERSONNEL ENROLMENT & CREDENTIAL SETUP</span>
+              <span>Personnel Enrolment & Credential Setup</span>
             </div>
-            <span className="panel-gov-tag font-mono">MIL-STD AUTH</span>
+            <span className="panel-gov-tag">Official Auth</span>
           </div>
 
           <form onSubmit={handleCreateAccount} className="gov-enrol-form">
@@ -459,11 +467,11 @@ export default function OperatorsTab() {
             <div className="gov-field-group">
               <label className="gov-field-label">
                 <User size={12} />
-                <span>OFFICIAL USERNAME (LOGIN ID) *</span>
+                <span>Official Username (Login ID) *</span>
               </label>
               <input
                 type="text"
-                className="gov-input font-mono"
+                className="gov-input"
                 value={formData.username}
                 onChange={(e) => handleChange('username', e.target.value)}
                 placeholder="e.g. bsf_command_44"
@@ -476,7 +484,7 @@ export default function OperatorsTab() {
             <div className="gov-field-group">
               <label className="gov-field-label">
                 <Award size={12} />
-                <span>RANK & FULL NAME *</span>
+                <span>Rank & Full Name *</span>
               </label>
               <input
                 type="text"
@@ -492,12 +500,12 @@ export default function OperatorsTab() {
             <div className="gov-field-group">
               <label className="gov-field-label">
                 <Lock size={12} />
-                <span>SECURITY PASSWORD SETUP *</span>
+                <span>Account Password *</span>
               </label>
               <div className="gov-input-wrapper">
                 <input
                   type={showPassword ? 'text' : 'password'}
-                  className="gov-input gov-input-pwd font-mono"
+                  className="gov-input gov-input-pwd"
                   value={formData.password}
                   onChange={(e) => handleChange('password', e.target.value)}
                   placeholder="Set account password (min 4 chars)"
@@ -521,7 +529,7 @@ export default function OperatorsTab() {
                       backgroundColor: strength.color
                     }}
                   />
-                  <span className="strength-text font-mono" style={{ color: strength.color }}>
+                  <span className="strength-text" style={{ color: strength.color }}>
                     Security Standard: {strength.text}
                   </span>
                 </div>
@@ -532,12 +540,12 @@ export default function OperatorsTab() {
             <div className="gov-field-group">
               <label className="gov-field-label">
                 <Lock size={12} />
-                <span>CONFIRM PASSWORD *</span>
+                <span>Confirm Password *</span>
               </label>
               <div className="gov-input-wrapper">
                 <input
                   type={showConfirmPassword ? 'text' : 'password'}
-                  className="gov-input gov-input-pwd font-mono"
+                  className="gov-input gov-input-pwd"
                   value={formData.confirmPassword}
                   onChange={(e) => handleChange('confirmPassword', e.target.value)}
                   placeholder="Re-enter password to verify"
@@ -553,7 +561,7 @@ export default function OperatorsTab() {
                 </button>
               </div>
               {formData.confirmPassword && formData.password === formData.confirmPassword && (
-                <span className="pwd-match-tag font-mono">✓ Passwords match</span>
+                <span className="pwd-match-tag">✓ Passwords match</span>
               )}
             </div>
 
@@ -562,10 +570,10 @@ export default function OperatorsTab() {
               <div className="gov-field-group">
                 <label className="gov-field-label">
                   <ShieldCheck size={12} />
-                  <span>OPERATIONAL ROLE</span>
+                  <span>Operational Role</span>
                 </label>
                 <select
-                  className="gov-select font-mono"
+                  className="gov-select"
                   value={formData.role}
                   onChange={(e) => handleChange('role', e.target.value)}
                 >
@@ -579,11 +587,11 @@ export default function OperatorsTab() {
               <div className="gov-field-group">
                 <label className="gov-field-label">
                   <Radio size={12} />
-                  <span>CALLSIGN</span>
+                  <span>Callsign Identifier</span>
                 </label>
                 <input
                   type="text"
-                  className="gov-input font-mono"
+                  className="gov-input"
                   value={formData.callsign}
                   onChange={(e) => handleChange('callsign', e.target.value)}
                   placeholder="e.g. EAGLE-03"
@@ -596,10 +604,10 @@ export default function OperatorsTab() {
               <div className="gov-field-group">
                 <label className="gov-field-label">
                   <MapPin size={12} />
-                  <span>ASSIGNED BOP POST</span>
+                  <span>Assigned Outpost Post</span>
                 </label>
                 <select
-                  className="gov-select font-mono"
+                  className="gov-select"
                   value={formData.bop_sector}
                   onChange={(e) => handleChange('bop_sector', e.target.value)}
                 >
@@ -614,12 +622,12 @@ export default function OperatorsTab() {
               <div className="gov-field-group">
                 <label className="gov-field-label">
                   <KeyRound size={12} />
-                  <span>SECURITY PIN (4 DIGITS)</span>
+                  <span>Security PIN (4 Digits)</span>
                 </label>
                 <input
                   type="password"
                   maxLength={4}
-                  className="gov-input font-mono"
+                  className="gov-input"
                   value={formData.security_pin}
                   onChange={(e) => handleChange('security_pin', e.target.value.replace(/\D/g, ''))}
                   placeholder="4-digit PIN"
@@ -628,11 +636,11 @@ export default function OperatorsTab() {
             </div>
 
             {/* Legal Notice */}
-            <div className="gov-disclaimer-box font-mono">
-              <span>LEGAL DISCLAIMER:</span>
+            <div className="gov-disclaimer-box">
+              <span>Security Notice:</span>
               <p>
-                Credential issuance grants access to live border surveillance feeds and telemetry.
-                All activities are logged and auditable under defense regulations.
+                Credential issuance grants authorized access to real-time border surveillance feeds and telemetry.
+                All operational actions are logged and auditable under defense regulations.
               </p>
             </div>
 

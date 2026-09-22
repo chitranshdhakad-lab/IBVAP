@@ -23,49 +23,49 @@ class Video(Base):
     __tablename__ = "videos"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    filename = Column(String(256), nullable=False)
+    filename = Column(String(256), nullable=False, unique=True, index=True)
     filepath = Column(String(512), nullable=False)
     duration = Column(Float, default=0.0)
     resolution = Column(String(32), default="1920x1080")
     fps = Column(Float, default=25.0)
-    camera_id = Column(String(32), ForeignKey("cameras.id"), nullable=True)
-    processing_status = Column(String(32), default="IDLE") # "IDLE", "PROCESSING", "COMPLETED", "ERROR"
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="SET NULL"), nullable=True, index=True)
+    processing_status = Column(String(32), default="IDLE", index=True) # "IDLE", "PROCESSING", "COMPLETED", "ERROR"
     total_frames = Column(Integer, default=0)
     processed_frames = Column(Integer, default=0)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
 class SecurityEvent(Base):
     __tablename__ = "security_events"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    event_type = Column(String(64), nullable=False) # "ZONE_INTRUSION", "VEHICLE_DETECTED", "ANIMAL_INCURSION", "LOITERING"
-    camera_id = Column(String(32), nullable=False)
-    video_id = Column(Integer, nullable=True)
+    event_type = Column(String(64), nullable=False, index=True) # "ZONE_INTRUSION", "VEHICLE_DETECTED", "ANIMAL_INCURSION", "LOITERING"
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
     timestamp = Column(String(32), nullable=False) # e.g. "22:41:32"
     video_timestamp = Column(Float, default=0.0)
-    tracking_id = Column(Integer, nullable=True)
+    tracking_id = Column(Integer, nullable=True, index=True)
     object_class = Column(String(64), nullable=False)
-    category = Column(String(32), nullable=False)
-    severity = Column(String(32), default="Critical") # "Critical", "High", "Medium", "Low"
-    risk_score = Column(Integer, default=50) # 0-100
+    category = Column(String(32), nullable=False, index=True)
+    severity = Column(String(32), default="Critical", index=True) # "Critical", "High", "Medium", "Low"
+    risk_score = Column(Integer, default=50, index=True) # 0-100
     key_factors = Column(JSON, default=list) # List of factor strings
     details = Column(JSON, default=dict)
     snapshot_path = Column(String(512), nullable=True)
-    verified = Column(Boolean, default=False)
+    verified = Column(Boolean, default=False, index=True)
     verified_by = Column(String(128), nullable=True) # e.g. "Operator" or "Administrator"
     verified_at = Column(DateTime, nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
 class Alert(Base):
     __tablename__ = "alerts"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     title = Column(String(128), nullable=False)
-    severity = Column(String(32), default="Critical")
-    status = Column(String(32), default="ACTIVE") # "ACTIVE", "VERIFIED", "RESOLVED"
-    camera_id = Column(String(32), nullable=False)
-    event_id = Column(Integer, ForeignKey("security_events.id"), nullable=True)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    severity = Column(String(32), default="Critical", index=True)
+    status = Column(String(32), default="ACTIVE", index=True) # "ACTIVE", "VERIFIED", "RESOLVED"
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id = Column(Integer, ForeignKey("security_events.id", ondelete="CASCADE"), nullable=True, index=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
     verified_by = Column(String(128), nullable=True)
     verified_at = Column(DateTime, nullable=True)
     notes = Column(Text, nullable=True)
@@ -74,13 +74,13 @@ class Detection(Base):
     __tablename__ = "detections"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    video_id = Column(Integer, nullable=True)
-    camera_id = Column(String(32), nullable=False)
-    frame_number = Column(Integer, nullable=False)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=True, index=True)
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    frame_number = Column(Integer, nullable=False, index=True)
     timestamp = Column(Float, default=0.0)
-    tracking_id = Column(Integer, nullable=True)
+    tracking_id = Column(Integer, nullable=True, index=True)
     object_class = Column(String(64), nullable=False)
-    category = Column(String(32), nullable=False)
+    category = Column(String(32), nullable=False, index=True)
     confidence = Column(Float, default=0.0)
     bbox = Column(JSON, nullable=False) # [x1, y1, x2, y2]
 
@@ -88,9 +88,9 @@ class Track(Base):
     __tablename__ = "tracks"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    video_id = Column(Integer, nullable=True)
-    camera_id = Column(String(32), nullable=False)
-    track_id = Column(Integer, nullable=False)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=True, index=True)
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    track_id = Column(Integer, nullable=False, index=True)
     object_class = Column(String(64), nullable=False)
     category = Column(String(32), nullable=False)
     first_seen_frame = Column(Integer, default=0)
@@ -99,13 +99,13 @@ class Track(Base):
     last_seen_time = Column(Float, default=0.0)
     avg_speed = Column(Float, default=0.0)
     trajectory = Column(JSON, default=list) # [[x, y], ...]
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
 
 class RestrictedZone(Base):
     __tablename__ = "restricted_zones"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    camera_id = Column(String(32), ForeignKey("cameras.id"), nullable=False)
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(128), nullable=False)
     polygon_coords = Column(JSON, nullable=False) # [[x, y], ...]
     enabled = Column(Boolean, default=True)
@@ -116,7 +116,7 @@ class AlertRule(Base):
     __tablename__ = "alert_rules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    rule_type = Column(String(64), nullable=False) # "ZONE_BREACH", "LOITERING", "FENCE_APPROACH", "SEVERITY_MAPPING"
+    rule_type = Column(String(64), nullable=False, index=True) # "ZONE_BREACH", "LOITERING", "FENCE_APPROACH", "SEVERITY_MAPPING"
     name = Column(String(128), nullable=False)
     enabled = Column(Boolean, default=True)
     threshold = Column(Float, default=0.0) # e.g. dwell seconds or distance in meters
@@ -129,9 +129,9 @@ class AuditLog(Base):
     __tablename__ = "audit_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
-    action = Column(String(64), nullable=False) # e.g. "CAMERA_CREATED", "SETTINGS_CHANGED", etc.
-    entity = Column(String(64), nullable=False) # e.g. "Camera", "Setting", "Event"
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
+    action = Column(String(64), nullable=False, index=True) # e.g. "CAMERA_CREATED", "SETTINGS_CHANGED", etc.
+    entity = Column(String(64), nullable=False, index=True) # e.g. "Camera", "Setting", "Event"
     entity_id = Column(String(128), nullable=True)
     details = Column(Text, nullable=True)
     user = Column(String(128), default="Operator")
@@ -140,12 +140,12 @@ class Snapshot(Base):
     __tablename__ = "snapshots"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    event_id = Column(Integer, ForeignKey("security_events.id"), nullable=True)
-    camera_id = Column(String(32), nullable=False)
-    video_id = Column(Integer, nullable=True)
+    event_id = Column(Integer, ForeignKey("security_events.id", ondelete="CASCADE"), nullable=True, index=True)
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
     filepath = Column(String(512), nullable=False)
-    filename = Column(String(256), nullable=False)
-    timestamp = Column(DateTime, default=datetime.datetime.utcnow)
+    filename = Column(String(256), nullable=False, index=True)
+    timestamp = Column(DateTime, default=datetime.datetime.utcnow, index=True)
     metadata_json = Column(JSON, default=dict)
 
 class SystemSetting(Base):
@@ -159,11 +159,11 @@ class AnalysisJob(Base):
     __tablename__ = "analysis_jobs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    video_id = Column(Integer, nullable=True)
-    video_filename = Column(String(256), nullable=False)
-    camera_id = Column(String(32), nullable=False)
-    status = Column(String(32), default="IDLE")  # IDLE, QUEUED, STARTING, RUNNING, PAUSED, STOPPING, COMPLETED, FAILED, CANCELLED
-    started_at = Column(DateTime, default=datetime.datetime.utcnow)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="SET NULL"), nullable=True, index=True)
+    video_filename = Column(String(256), nullable=False, index=True)
+    camera_id = Column(String(32), ForeignKey("cameras.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String(32), default="IDLE", index=True)  # IDLE, QUEUED, STARTING, RUNNING, PAUSED, STOPPING, COMPLETED, FAILED, CANCELLED
+    started_at = Column(DateTime, default=datetime.datetime.utcnow, index=True)
     completed_at = Column(DateTime, nullable=True)
     processed_frames = Column(Integer, default=0)
     total_frames = Column(Integer, default=0)

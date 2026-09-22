@@ -1,8 +1,11 @@
 import os
+import json
+import datetime
 import shutil
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -10,7 +13,7 @@ from app.config import EVIDENCE_DIR, VIDEOS_DIR
 from app.models import (
     SystemSetting, SecurityEvent, Alert, Detection,
     Track, AnalysisJob, Video, Camera, Snapshot,
-    DetectedPlate, WatchlistPlate
+    DetectedPlate, WatchlistPlate, RestrictedZone
 )
 from app.routers.settings import DEFAULT_SETTINGS
 from app.services.job_manager import job_manager
@@ -28,20 +31,21 @@ class ResetDataRequest(BaseModel):
 
 @router.post("/reset-settings")
 def reset_settings_defaults(req: ResetSettingsRequest, db: Session = Depends(get_db)):
-    """Resets system settings back to factory calibrated defaults."""
+    """Resets system settings back to factory calibrated defaults with valid JSON serialization."""
     if not req.confirm:
         raise HTTPException(status_code=400, detail="Confirmation flag required to reset settings")
 
+    # Clear and recreate settings using json.dumps to ensure valid JSON serialization
+    db.query(SystemSetting).delete()
     for key, val in DEFAULT_SETTINGS.items():
-        existing = db.query(SystemSetting).filter(SystemSetting.key == key).first()
-        if existing:
-            existing.value = str(val)
-        else:
-            db.add(SystemSetting(key=key, value=str(val)))
+        db.add(SystemSetting(key=key, value=json.dumps(val), updated_at=datetime.datetime.utcnow()))
     db.commit()
 
+    from app.routers.settings import reload_active_settings
+    reload_active_settings()
+
     log_audit(db, "RESET_SETTINGS", "SystemSetting", "Reset all operational settings to factory defaults")
-    return {"status": "SUCCESS", "message": "Settings restored to factory defaults"}
+    return {"status": "SUCCESS", "message": "Settings restored to factory defaults", "settings": DEFAULT_SETTINGS}
 
 class ResetAnalysisRequest(BaseModel):
     confirm: bool
@@ -101,7 +105,8 @@ def reset_all_data(req: ResetDataRequest, db: Session = Depends(get_db)):
     Destructive purge of operational surveillance data.
     Requires typing 'RESET IBVAP' in the confirmation payload.
     """
-    if req.confirmation != "RESET IBVAP":
+    conf = (req.confirmation or "").strip().upper()
+    if conf != "RESET IBVAP":
         raise HTTPException(
             status_code=400,
             detail="Safety verification failed. You must provide exact confirmation text 'RESET IBVAP'."
@@ -114,24 +119,31 @@ def reset_all_data(req: ResetDataRequest, db: Session = Depends(get_db)):
 
     # 2. Database purge in a single atomic transaction
     try:
+        db.execute(text("PRAGMA foreign_keys = OFF;"))
+        db.query(Alert).delete()
+        db.query(Snapshot).delete()
         db.query(Detection).delete()
         db.query(Track).delete()
-        db.query(Alert).delete()
-        db.query(SecurityEvent).delete()
-        db.query(Snapshot).delete()
-        db.query(AnalysisJob).delete()
         db.query(DetectedPlate).delete()
         db.query(WatchlistPlate).delete()
+        db.query(AnalysisJob).delete()
+        db.query(SecurityEvent).delete()
+
+        if req.delete_cameras:
+            db.query(RestrictedZone).delete()
+            db.query(Camera).delete()
 
         if req.delete_videos:
             db.query(Video).delete()
 
-        if req.delete_cameras:
-            db.query(Camera).delete()
-
         db.commit()
+        db.execute(text("PRAGMA foreign_keys = ON;"))
     except Exception as e:
         db.rollback()
+        try:
+            db.execute(text("PRAGMA foreign_keys = ON;"))
+        except Exception:
+            pass
         raise HTTPException(status_code=500, detail=f"Database reset transaction failed: {str(e)}")
 
     # 3. Clean physical evidence snapshot files (preserves videos unless requested)

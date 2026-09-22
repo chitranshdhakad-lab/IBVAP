@@ -450,54 +450,57 @@ export default function Header({
           )}
         </div>
 
-        {/* Operator Profile Widget & Interactive Account Console */}
+        {/* Professional Executive Operator Profile Console */}
         <div className="operator-profile-container" ref={operatorRef}>
           <div
-            className={`operator-profile ${showOperatorMenu ? 'active' : ''}`}
+            className={`operator-profile-exec ${showOperatorMenu ? 'active' : ''}`}
             onClick={() => setShowOperatorMenu(!showOperatorMenu)}
-            title="Border Surveillance Duty Officer - Click to View Session / Switch"
+            title="Border Surveillance Duty Officer • Session & Identity"
           >
-            <div className="operator-avatar">
-              <User size={14} />
-              <span className="operator-status-dot" />
+            <div className="operator-avatar-initials">
+              {(() => {
+                const name = currentOperator.full_name || currentOperator.username || 'DO';
+                const parts = name.trim().split(/\s+/);
+                return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+              })()}
+              <span className="exec-online-badge" />
             </div>
-            <div className="operator-info">
-              <div className="operator-name">{currentOperator.full_name || currentOperator.username || 'Duty Officer'}</div>
-              <div className="operator-bop">
-                {currentOperator.callsign || 'EAGLE-01'} • {currentOperator.badge_number || 'BSF-OFFICER'}
+            <div className="exec-info-col">
+              <div className="exec-officer-name">{currentOperator.full_name || currentOperator.username || 'Duty Officer'}</div>
+              <div className="exec-officer-role">
+                {currentOperator.role || 'Tactical Operator'} • {currentOperator.callsign || 'EAGLE-01'}
               </div>
             </div>
-            <ChevronDown size={12} color="#727b73" className={`operator-chevron ${showOperatorMenu ? 'rotate-180' : ''}`} />
+            <ChevronDown size={13} color="#94a3b8" className={`operator-chevron ${showOperatorMenu ? 'rotate-180' : ''}`} />
           </div>
 
-          {/* Operator Management Dropdown Menu */}
+          {/* Executive Personnel Dropdown Menu */}
           {showOperatorMenu && (
-            <div className="operator-menu-dropdown">
-              {/* Active Operator Tactical Card */}
-              <div className="op-dropdown-header-card">
-                <div className="op-card-top">
-                  <div className="op-avatar-badge">
-                    <Shield size={18} color="#f59e0b" />
-                  </div>
-                  <div className="op-meta-info">
-                    <div className="op-full-name">{currentOperator.full_name}</div>
-                    <div className="op-sub-meta">
-                      <span className="op-callsign font-mono">{currentOperator.callsign}</span>
-                      <span className="op-role-pill">{currentOperator.role}</span>
-                    </div>
-                  </div>
+            <div className="exec-dropdown-card">
+              {/* Active Officer Identity Header */}
+              <div className="exec-card-header">
+                <div className="exec-avatar-large">
+                  {(() => {
+                    const name = currentOperator.full_name || currentOperator.username || 'DO';
+                    const parts = name.trim().split(/\s+/);
+                    return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+                  })()}
                 </div>
-                <div className="op-card-bottom">
-                  <div className="op-sector-text font-mono">
-                    📍 {currentOperator.bop_sector}
+                <div className="exec-details-grid">
+                  <div className="exec-title-name">{currentOperator.full_name || 'Duty Officer'}</div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <span className="exec-badge-pill">{currentOperator.role || 'Tactical Operator'}</span>
+                    <span style={{ fontSize: '10px', color: '#f59e0b', fontWeight: 700 }}>{currentOperator.callsign}</span>
                   </div>
-                  <div className="op-badge-tag font-mono">
-                    BADGE: {currentOperator.badge_number || `@${currentOperator.username}`}
+                  <div className="exec-location-row">
+                    <span>📍 {currentOperator.bop_sector || 'Western Border Command'}</span>
+                    <span>•</span>
+                    <span>Badge: {currentOperator.badge_number || `@${currentOperator.username}`}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Action Buttons: Create Account & Lock Terminal */}
+              {/* Executive Action Buttons */}
               <div className="op-dropdown-actions">
                 <button
                   type="button"
@@ -508,7 +511,7 @@ export default function Header({
                   }}
                 >
                   <UserPlus size={14} />
-                  <span>+ Enrol New Personnel (Create Account)</span>
+                  <span>+ Enrol New Officer</span>
                 </button>
 
                 <button
@@ -523,17 +526,44 @@ export default function Header({
                   <Lock size={13} />
                   <span>Lock Workstation Terminal</span>
                 </button>
+
+                {operatorsList.length > 1 && (
+                  <button
+                    type="button"
+                    className="btn-dropdown-delete-account"
+                    title="Permanently delete your operator account (irreversible)"
+                    onClick={async () => {
+                      setShowOperatorMenu(false);
+                      if (!window.confirm(`⚠️ CONFIRM ACCOUNT DELETION\n\nYou are about to permanently delete your own operator account:\n\n  Name: ${currentOperator.full_name}\n  Username: @${currentOperator.username}\n  Badge: ${currentOperator.badge_number}\n\nThis action is IRREVERSIBLE. You will be logged out immediately.\n\nProceed?`)) return;
+                      try {
+                        await deleteOperatorAccount(currentOperator.id);
+                        localStorage.removeItem('ibvap_current_operator');
+                        window.location.reload();
+                      } catch (err) {
+                        alert(err.message || 'Failed to delete account.');
+                      }
+                    }}
+                  >
+                    <Trash2 size={13} />
+                    <span>Delete My Account</span>
+                  </button>
+                )}
               </div>
 
-              {/* Available Operators Switcher (Strict Password Required) */}
+              {/* Authorized Personnel Roster */}
               <div className="op-roster-section">
                 <div className="op-roster-title">
-                  <span>AUTHORIZED PERSONNEL (AUTH REQUIRED TO SWITCH)</span>
-                  <span className="op-roster-count">{operatorsList.length}</span>
+                  <span>Authorized Personnel Roster</span>
+                  <span className="op-roster-count">{operatorsList.length} Active</span>
                 </div>
                 <div className="op-roster-list">
                   {operatorsList.map((op) => {
                     const isCurrent = op.username === currentOperator.username;
+                    const opInitials = (() => {
+                      const name = op.full_name || op.username || 'OP';
+                      const parts = name.trim().split(/\s+/);
+                      return (parts.length >= 2 ? parts[0][0] + parts[1][0] : name.slice(0, 2)).toUpperCase();
+                    })();
                     return (
                       <div
                         key={op.id || op.username}
@@ -544,22 +574,38 @@ export default function Header({
                           setLoginTargetOperator(op);
                           setIsLoginModalOpen(true);
                         }}
-                        title={isCurrent ? 'Currently active duty session' : `Authenticate with password to switch to ${op.full_name}`}
+                        title={isCurrent ? 'Currently on active duty' : `Authenticate to switch duty officer to ${op.full_name}`}
                       >
                         <div className="op-item-left">
-                          <span className={`op-dot ${isCurrent ? 'op-dot-active' : ''}`} />
+                          <div
+                            style={{
+                              width: '26px',
+                              height: '26px',
+                              borderRadius: '50%',
+                              background: isCurrent ? 'linear-gradient(135deg, #059669, #10b981)' : 'rgba(255,255,255,0.1)',
+                              color: '#fff',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '10px',
+                              fontWeight: 700,
+                              flexShrink: 0
+                            }}
+                          >
+                            {opInitials}
+                          </div>
                           <div className="op-item-text">
                             <span className="op-item-name">{op.full_name}</span>
-                            <span className="op-item-details font-mono">@{op.username} • {op.callsign} ({op.role})</span>
+                            <span className="op-item-details">@{op.username} • {op.role || 'Officer'}</span>
                           </div>
                         </div>
                         {isCurrent ? (
-                          <span className="op-current-pill">ACTIVE DUTY</span>
+                          <span className="op-current-pill">ON DUTY</span>
                         ) : (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                             <span className="op-switch-btn">
                               <KeyRound size={11} style={{ marginRight: 3 }} />
-                              Auth & Switch
+                              Switch
                             </span>
                             {operatorsList.length > 1 && (
                               <button
@@ -610,7 +656,7 @@ export default function Header({
                     if (onNavigateToTab) onNavigateToTab('settings');
                   }}
                 >
-                  <span>Open Personnel Administration & Access Settings</span>
+                  <span>Personnel Administration & Access Settings</span>
                   <ChevronRight size={13} />
                 </button>
               </div>

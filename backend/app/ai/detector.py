@@ -1,4 +1,5 @@
 import os
+import threading
 import logging
 from typing import List, Dict, Any, Tuple, Optional
 from pathlib import Path
@@ -10,14 +11,9 @@ from app.config import MODELS_DIR
 logger = logging.getLogger("surveillance.ai.detector")
 
 PERSON_CLASSES = {"person"}
-VEHICLE_CLASSES = {"car", "motorcycle", "bus", "truck", "bicycle", "vehicle"}
+VEHICLE_CLASSES = {"car", "motorcycle", "bus", "truck", "bicycle"}
 ANIMAL_CLASSES = {"bird", "cat", "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe"}
-
-# Weapon classes from reference project (keshav-077/AI-Driven-Border-Security)
-# These match their YOLOv8 weapon detection training categories
-WEAPON_CLASSES = {"knife", "pistol", "rifle", "gun", "sword", "weapon", "handgun", "firearm"}
-
-ALL_SUPPORTED_CLASSES = PERSON_CLASSES | VEHICLE_CLASSES | ANIMAL_CLASSES | WEAPON_CLASSES | {"motion"}
+ALLOWED_SURVEILLANCE_CLASSES = PERSON_CLASSES | VEHICLE_CLASSES | ANIMAL_CLASSES
 
 def categorize_class(class_name: str) -> str:
     c = class_name.lower()
@@ -27,17 +23,56 @@ def categorize_class(class_name: str) -> str:
         return "vehicle"
     if c in ANIMAL_CLASSES:
         return "animal"
-    if c in WEAPON_CLASSES:
-        return "weapon"
-    if c in {"motion", "movement"}:
-        return "motion"
     return "other"
+
+
+# ==============================================================================
+# Global Thread-Safe YOLOv8 Singleton Cache
+# Ensures weights load exactly once across all pipelines, cameras, and loops
+# ==============================================================================
+_GLOBAL_YOLO_MODEL = None
+_MODEL_LOCK = threading.Lock()
+
+def get_yolo_model(model_name_or_path: Optional[str] = None):
+    """
+    Retrieves the global YOLOv8 model singleton.
+    Loads neural network weights once from disk and caches in memory.
+    """
+    global _GLOBAL_YOLO_MODEL
+    with _MODEL_LOCK:
+        if _GLOBAL_YOLO_MODEL is None:
+            from ultralytics import YOLO
+            candidates = [
+                MODELS_DIR / "yolov8n.pt",
+                Path("backend/models/yolov8n.pt"),
+                Path("models/yolov8n.pt"),
+                Path("yolov8n.pt")
+            ]
+            if model_name_or_path:
+                candidates.insert(0, Path(model_name_or_path))
+                candidates.insert(1, MODELS_DIR / model_name_or_path)
+
+            resolved_path = None
+            for c in candidates:
+                if c.exists() and c.stat().st_size > 1000000:
+                    resolved_path = str(c.resolve())
+                    break
+
+            if resolved_path:
+                logger.info(f"Loading YOLOv8 weights ONCE from {resolved_path}...")
+                _GLOBAL_YOLO_MODEL = YOLO(resolved_path)
+                logger.info(f"YOLOv8 model loaded successfully and cached. Classes: {len(_GLOBAL_YOLO_MODEL.names)}")
+            else:
+                logger.error(f"YOLOv8 weights file not found in {[str(p) for p in candidates]}")
+                raise FileNotFoundError("yolov8n.pt model file not found.")
+
+    return _GLOBAL_YOLO_MODEL
 
 
 class FaceDetector:
     """
-    Face Detector supporting both OpenCV YuNet (FaceDetectorYN) and Haar Cascade (CascadeClassifier).
-    Provides real-time facial detection and overlays on surveillance feeds.
+    Lazy-initialized Face Detector supporting YuNet and Haar Cascade.
+    Only loads when facial detection is explicitly activated.
     """
     def __init__(self):
         self.yunet = None
@@ -45,10 +80,13 @@ class FaceDetector:
         self.current_size = (0, 0)
         self._frame_count = 0
         self._cached_faces: List[Dict[str, Any]] = []
-        self._init_detector()
+        self._initialized = False
 
-    def _init_detector(self):
-        # 1. Try modern YuNet ONNX detector (OpenCV 5+ / dnn)
+    def _ensure_initialized(self):
+        if self._initialized:
+            return
+        self._initialized = True
+        # Try modern YuNet ONNX detector
         yunet_path = MODELS_DIR / "face_detection_yunet_2023mar.onnx"
         if yunet_path.exists() and hasattr(cv2, "FaceDetectorYN_create"):
             try:
@@ -66,7 +104,7 @@ class FaceDetector:
             except Exception as e:
                 logger.warning(f"Could not load YuNet Face Detector: {e}")
 
-        # 2. Try Haar Cascade (OpenCV 4.x or custom build)
+        # Try Haar Cascade
         if hasattr(cv2, "CascadeClassifier"):
             try:
                 cascade_path = cv2.data.haarcascades + 'haarcascade_frontalface_default.xml'
@@ -86,21 +124,18 @@ class FaceDetector:
                 except Exception as e:
                     logger.warning(f"Failed to load Haar Cascade from models dir: {e}")
 
-        logger.warning("No face detection backend available. Face detection disabled.")
-
     def detect_faces(self, frame: np.ndarray) -> List[Dict[str, Any]]:
-        """Detect faces in frame with 4-frame caching for CPU smoothness."""
+        """Detect faces in frame with caching for CPU smoothness."""
         if frame is None or frame.size == 0:
             return []
 
+        self._ensure_initialized()
         self._frame_count += 1
-        # Throttle heavy neural face inference: compute every 4 frames, return cache on intermediate frames
         if (self._frame_count % 4 != 1) and len(self._cached_faces) > 0:
             return self._cached_faces
 
         h, w = frame.shape[:2]
 
-        # 1. YuNet inference
         if self.yunet is not None:
             try:
                 if self.current_size != (w, h):
@@ -129,7 +164,6 @@ class FaceDetector:
                 logger.error(f"YuNet detection error: {e}")
                 return self._cached_faces
 
-        # 2. Haar Cascade inference
         if self.cascade is not None and hasattr(self.cascade, "empty") and not self.cascade.empty():
             try:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -151,7 +185,7 @@ class FaceDetector:
                             max(0.0, fx / w),
                             max(0.0, fy / h),
                             min(1.0, (fx + fw) / w),
-                            min(1.0, (fy + fh) / h)
+                            min(1.0, (fx + fh) / h)
                         )
                     })
                 self._cached_faces = results
@@ -162,187 +196,172 @@ class FaceDetector:
 
         return []
 
+
 try:
     import torch
-    # Optimize PyTorch CPU intra-op parallelism
+    # Optimize PyTorch CPU parallelism
     torch.set_num_threads(max(2, min(4, (os.cpu_count() or 4))))
 except Exception:
     pass
 
+
 class ObjectDetector:
     """
-    Tactical Object Detection Engine for Border Surveillance.
-    Uses YOLOv8n when available with fallback to OpenCV background subtraction.
+    High-Precision YOLOv8 Object Detection Engine for Surveillance.
+    Guarantees genuine model inference using preloaded neural weights.
+    Strictly filters for real person, vehicle, and animal detections.
     """
-    def __init__(self, confidence_threshold: float = 0.35, imgsz: int = 320):
+    def __init__(self, confidence_threshold: float = 0.25, imgsz: int = 416):
         self.confidence_threshold = confidence_threshold
         self.imgsz = imgsz
         self.model = None
-        self.model_type = "OPENCV_TACTICAL"
+        self.model_type = "YOLOv8"
         self._init_model()
 
     def _init_model(self):
         try:
-            from ultralytics import YOLO
-            candidates = [
-                MODELS_DIR / "yolov8n.pt",
-                Path("yolov8n.pt"),
-                Path("backend/models/yolov8n.pt")
-            ]
-            model_path = None
-            for c in candidates:
-                if c.exists() and c.stat().st_size > 1000000:
-                    model_path = str(c)
-                    break
-
-            if model_path:
-                self.model = YOLO(model_path)
-                self.model_type = "YOLOv8"
-                logger.info(f"Loaded YOLOv8 detector from {model_path} (imgsz={self.imgsz})")
-            else:
-                logger.warning("YOLOv8 model file not found. Falling back to OpenCV detector.")
-                self._init_opencv_fallback()
+            self.model = get_yolo_model()
+            self.model_type = "YOLOv8"
         except Exception as e:
-            logger.warning(f"Error loading YOLO: {e}. Falling back to OpenCV detector.")
-            self._init_opencv_fallback()
-
-    def _init_opencv_fallback(self):
-        self.model_type = "OPENCV_TACTICAL"
-        self.bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=300, varThreshold=16, detectShadow=True)
+            logger.error(f"Critical error loading YOLOv8 model: {e}")
+            raise RuntimeError(f"YOLOv8 detector initialization failed: {e}")
 
     def detect(self, frame: np.ndarray, allowed_classes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
-        target_classes = set(allowed_classes) if allowed_classes is not None else ALL_SUPPORTED_CLASSES
+        """
+        Runs pure YOLOv8 inference on input frame.
+        Returns genuine detections with inference confidence scores and normalized bounding boxes.
+        """
+        if frame is None or frame.size == 0 or self.model is None:
+            return []
+
         h, w = frame.shape[:2]
+        if w <= 0 or h <= 0:
+            return []
+
+        target_classes = set(allowed_classes) if allowed_classes is not None else ALLOWED_SURVEILLANCE_CLASSES
         detections: List[Dict[str, Any]] = []
 
-        if self.model_type == "YOLOv8" and self.model is not None:
-            try:
-                import torch
-                with torch.inference_mode():
-                    results = self.model(frame, conf=self.confidence_threshold, imgsz=self.imgsz, verbose=False)
-                for r in results:
-                    for box in r.boxes:
-                        cls_id = int(box.cls[0].item())
-                        raw_cls_name = self.model.names[cls_id].lower()
-                        conf = float(box.conf[0].item())
+        try:
+            import torch
+            with torch.inference_mode():
+                results = self.model(
+                    frame,
+                    conf=self.confidence_threshold,
+                    imgsz=self.imgsz,
+                    verbose=False
+                )
 
-                        if target_classes is not None and raw_cls_name not in target_classes:
-                            continue
+            for r in results:
+                if r.boxes is None or len(r.boxes) == 0:
+                    continue
+                for box in r.boxes:
+                    cls_id = int(box.cls[0].item())
+                    raw_cls_name = self.model.names[cls_id].lower()
+                    conf = float(box.conf[0].item())
 
-                        xyxy = box.xyxy[0].cpu().numpy()
-                        x1 = max(0.0, min(1.0, float(xyxy[0] / w)))
-                        y1 = max(0.0, min(1.0, float(xyxy[1] / h)))
-                        x2 = max(0.0, min(1.0, float(xyxy[2] / w)))
-                        y2 = max(0.0, min(1.0, float(xyxy[3] / h)))
+                    # Strict filter: only real person, vehicle, or animal classes
+                    if raw_cls_name not in ALLOWED_SURVEILLANCE_CLASSES:
+                        continue
+                    if target_classes is not None and raw_cls_name not in target_classes:
+                        continue
 
-                        category = categorize_class(raw_cls_name)
-                        display_name = "vehicle" if raw_cls_name in ["car", "truck", "bus"] else raw_cls_name
+                    # Bounding box extraction with strict clamping to frame dimensions
+                    xyxy = box.xyxy[0].cpu().numpy()
+                    px1 = max(0, min(w - 1, int(round(xyxy[0]))))
+                    py1 = max(0, min(h - 1, int(round(xyxy[1]))))
+                    px2 = max(px1 + 1, min(w, int(round(xyxy[2]))))
+                    py2 = max(py1 + 1, min(h, int(round(xyxy[3]))))
 
-                        detections.append({
-                            "class": display_name,
-                            "category": category,
-                            "confidence": round(conf, 3),
-                            "bbox": (x1, y1, x2, y2),
-                            "pixel_bbox": (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]))
-                        })
-                return detections
-            except Exception as e:
-                logger.warning(f"YOLOv8 inference exception: {e}. Falling back to OpenCV detector.")
+                    x1 = max(0.0, min(1.0, float(px1 / w)))
+                    y1 = max(0.0, min(1.0, float(py1 / h)))
+                    x2 = max(x1, min(1.0, float(px2 / w)))
+                    y2 = max(y1, min(1.0, float(py2 / h)))
 
-        return self._detect_opencv(frame, target_classes)
+                    category = categorize_class(raw_cls_name)
+                    display_name = "vehicle" if raw_cls_name in ["car", "truck", "bus", "motorcycle"] else raw_cls_name
+
+                    detections.append({
+                        "class": display_name,
+                        "raw_class": raw_cls_name,
+                        "category": category,
+                        "confidence": round(conf, 3),
+                        "bbox": (x1, y1, x2, y2),
+                        "pixel_bbox": (px1, py1, px2, py2)
+                    })
+
+            return detections
+        except Exception as e:
+            logger.error(f"YOLOv8 inference exception: {e}", exc_info=True)
+            return []
 
     def track(self, frame: np.ndarray, persist: bool = True, allowed_classes: Optional[List[str]] = None) -> List[Dict[str, Any]]:
         """
-        Runs Ultralytics native ByteTrack on frame.
-        Maintains persistent tracking IDs and returns tracked objects with bounding boxes.
+        Runs Ultralytics native ByteTrack on frame with model inference.
+        Returns tracked objects with native tracking IDs or None (for upstream tracking).
         """
-        target_classes = set(allowed_classes) if allowed_classes is not None else ALL_SUPPORTED_CLASSES
+        if frame is None or frame.size == 0 or self.model is None:
+            return []
+
         h, w = frame.shape[:2]
+        if w <= 0 or h <= 0:
+            return []
+
+        target_classes = set(allowed_classes) if allowed_classes is not None else ALLOWED_SURVEILLANCE_CLASSES
         tracked_objects: List[Dict[str, Any]] = []
 
-        if self.model_type == "YOLOv8" and self.model is not None:
-            try:
-                import torch
-                with torch.inference_mode():
-                    results = self.model.track(
-                        frame,
-                        persist=persist,
-                        tracker="bytetrack.yaml",
-                        conf=self.confidence_threshold,
-                        imgsz=self.imgsz,
-                        verbose=False
-                    )
-                if results and len(results) > 0 and results[0].boxes is not None:
-                    for box in results[0].boxes:
-                        cls_id = int(box.cls[0].item())
-                        raw_cls_name = self.model.names[cls_id].lower()
-                        conf = float(box.conf[0].item())
-
-                        if target_classes is not None and raw_cls_name not in target_classes:
-                            continue
-
-                        track_id = int(box.id[0].item()) if box.id is not None else 1
-
-                        xyxy = box.xyxy[0].cpu().numpy()
-                        x1 = max(0.0, min(1.0, float(xyxy[0] / w)))
-                        y1 = max(0.0, min(1.0, float(xyxy[1] / h)))
-                        x2 = max(0.0, min(1.0, float(xyxy[2] / w)))
-                        y2 = max(0.0, min(1.0, float(xyxy[3] / h)))
-
-                        category = categorize_class(raw_cls_name)
-                        display_name = "vehicle" if raw_cls_name in ["car", "truck", "bus"] else raw_cls_name
-
-                        tracked_objects.append({
-                            "tracking_id": track_id,
-                            "class": display_name,
-                            "category": category,
-                            "confidence": round(conf, 3),
-                            "bbox": (x1, y1, x2, y2),
-                            "pixel_bbox": (int(xyxy[0]), int(xyxy[1]), int(xyxy[2]), int(xyxy[3]))
-                        })
-                return tracked_objects
-            except Exception as e:
-                logger.warning(f"ByteTrack tracking exception: {e}. Falling back to standard detection.")
-
-        # Fallback to standard detect
-        return self.detect(frame, allowed_classes)
-
-    def _detect_opencv(self, frame: np.ndarray, target_classes: Optional[set]) -> List[Dict[str, Any]]:
-        h, w = frame.shape[:2]
-        detections: List[Dict[str, Any]] = []
-
-        fg_mask = self.bg_subtractor.apply(frame)
-        _, thresh = cv2.threshold(fg_mask, 200, 255, cv2.THRESH_BINARY)
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
-        dilated = cv2.dilate(thresh, kernel, iterations=2)
-        contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-        for c in contours:
-            area = cv2.contourArea(c)
-            bx, by, bw, bh = cv2.boundingRect(c)
-            if by < 30 or (by + bh) > (h - 20):
-                continue
-            if area < 400 or area > (h * w * 0.5):
-                continue
-
-            # OpenCV MOG2 produces motion blobs only — strictly classified as MOTION (not fake person/vehicle/animal)
-            obj_cls = "motion"
-            category = "motion"
-            conf = min(0.60, max(0.35, 0.40 + (area / (h * w * 0.05)) * 0.10))
-
-            if target_classes is not None and obj_cls not in target_classes and category not in target_classes:
-                continue
-
-            detections.append({
-                "class": obj_cls,
-                "category": category,
-                "confidence": round(float(conf), 3),
-                "bbox": (
-                    max(0.0, min(1.0, bx / float(w))),
-                    max(0.0, min(1.0, by / float(h))),
-                    max(0.0, min(1.0, (bx + bw) / float(w))),
-                    max(0.0, min(1.0, (by + bh) / float(h)))
+        try:
+            import torch
+            with torch.inference_mode():
+                results = self.model.track(
+                    frame,
+                    persist=persist,
+                    tracker="bytetrack.yaml",
+                    conf=self.confidence_threshold,
+                    imgsz=self.imgsz,
+                    verbose=False
                 )
-            })
 
-        return detections
+            if results and len(results) > 0 and results[0].boxes is not None:
+                for box in results[0].boxes:
+                    cls_id = int(box.cls[0].item())
+                    raw_cls_name = self.model.names[cls_id].lower()
+                    conf = float(box.conf[0].item())
+
+                    # Strict filter: only real person, vehicle, or animal classes
+                    if raw_cls_name not in ALLOWED_SURVEILLANCE_CLASSES:
+                        continue
+                    if target_classes is not None and raw_cls_name not in target_classes:
+                        continue
+
+                    # Native ByteTrack ID if assigned, else None (NEVER hardcode ID 1)
+                    track_id = int(box.id[0].item()) if (box.id is not None and len(box.id) > 0) else None
+
+                    xyxy = box.xyxy[0].cpu().numpy()
+                    px1 = max(0, min(w - 1, int(round(xyxy[0]))))
+                    py1 = max(0, min(h - 1, int(round(xyxy[1]))))
+                    px2 = max(px1 + 1, min(w, int(round(xyxy[2]))))
+                    py2 = max(py1 + 1, min(h, int(round(xyxy[3]))))
+
+                    x1 = max(0.0, min(1.0, float(px1 / w)))
+                    y1 = max(0.0, min(1.0, float(py1 / h)))
+                    x2 = max(x1, min(1.0, float(px2 / w)))
+                    y2 = max(y1, min(1.0, float(py2 / h)))
+
+                    category = categorize_class(raw_cls_name)
+                    display_name = "vehicle" if raw_cls_name in ["car", "truck", "bus", "motorcycle"] else raw_cls_name
+
+                    tracked_objects.append({
+                        "tracking_id": track_id,
+                        "class": display_name,
+                        "raw_class": raw_cls_name,
+                        "category": category,
+                        "confidence": round(conf, 3),
+                        "bbox": (x1, y1, x2, y2),
+                        "pixel_bbox": (px1, py1, px2, py2)
+                    })
+
+            return tracked_objects
+        except Exception as e:
+            logger.warning(f"ByteTrack tracking exception: {e}. Falling back to standard YOLO detect.")
+            return self.detect(frame, allowed_classes)
+

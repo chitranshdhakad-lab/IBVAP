@@ -19,6 +19,7 @@ import { useSurveillanceWebSocket } from '../services/useSurveillanceWebSocket.j
 import { getStoredSettings, subscribeSettings, initSettingsFromServer } from '../services/settingsManager.js';
 import { getStoredOperator, subscribeOperator } from '../services/operatorManager.js';
 import WorkstationLockScreen from './WorkstationLockScreen.jsx';
+import ErrorBoundary from './ErrorBoundary.jsx';
 
 export default function Dashboard() {
   const initialSettings = getStoredSettings();
@@ -79,7 +80,7 @@ export default function Dashboard() {
 
   }, []);
   const [selectedCamera, setSelectedCamera] = useState(initialSettings.defaultCamera || 'CAM-01');
-  const [selectedVideo, setSelectedVideo] = useState('Border_Test_03.mp4');
+  const [selectedVideo, setSelectedVideo] = useState('');
   const [analysisMode, setAnalysisMode] = useState('analysis');
   const [seekTargetTime, setSeekTargetTime] = useState(null);
 
@@ -148,9 +149,9 @@ export default function Dashboard() {
 
   const filteredThreatAssessment = (() => {
     if (!threatAssessment) return threatAssessment;
-    if (filteredActiveEntities.length === 0 && (threatAssessment.score > 15 || threatAssessment.level !== 'SECURE')) {
+    if (filteredActiveEntities.length === 0 && (threatAssessment.score > 0 || threatAssessment.level !== 'SECURE')) {
       return {
-        score: 8,
+        score: 0,
         level: 'SECURE',
         description: 'Perimeter scanning nominal. Zero active targets detected.',
         key_factors: ['Optical feed calibrated', 'Sector perimeter secure']
@@ -235,12 +236,21 @@ export default function Dashboard() {
 
   // Update current event when websocket reports a latest event - guarded to avoid reflow loop
   const lastEventIdRef = useRef(null);
+  const lastEventFetchTimeRef = useRef(0);
   useEffect(() => {
     if (latestEvent) {
-      setCurrentEventData(latestEvent);
+      setCurrentEventData((prev) => {
+        if (!prev && !latestEvent) return null;
+        if (prev?.id === latestEvent?.id && prev?.time === latestEvent?.time) return prev;
+        return latestEvent;
+      });
       if (latestEvent.id && latestEvent.id !== lastEventIdRef.current) {
         lastEventIdRef.current = latestEvent.id;
-        fetchEvents();
+        const now = Date.now();
+        if (now - lastEventFetchTimeRef.current > 2500) {
+          lastEventFetchTimeRef.current = now;
+          fetchEvents();
+        }
 
         // Check if sound notifications are enabled
         const s = getStoredSettings();
@@ -280,18 +290,22 @@ export default function Dashboard() {
 
   // Analysis Toggle Handler
   const handleToggleAnalysis = async (speedMode = 'fast') => {
-    if (analysisActive) {
+    const isCurrentlyRunning = Boolean(analysisActive || jobStatus === 'RUNNING');
+    if (isCurrentlyRunning) {
+      if (sendCommand) {
+        sendCommand({ action: 'stop_analysis', camera_id: selectedCamera });
+      }
       try {
         await fetch('/api/analysis/stop', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ camera_id: selectedCamera })
+          body: JSON.stringify({ camera_id: selectedCamera, video: selectedVideo })
         });
       } catch (err) {
         console.warn('Analysis stop request error', err);
       }
-      sendCommand({ action: 'stop_analysis' });
     } else {
+      const mode = typeof speedMode === 'string' ? speedMode : 'fast';
       try {
         await fetch('/api/analysis/start', {
           method: 'POST',
@@ -300,18 +314,20 @@ export default function Dashboard() {
             video: selectedVideo,
             video_filename: selectedVideo,
             camera_id: selectedCamera,
-            speed_mode: typeof speedMode === 'string' ? speedMode : 'fast'
+            speed_mode: mode
           })
         });
       } catch (err) {
         console.warn('Analysis start request error', err);
       }
-      sendCommand({
-        action: 'start_analysis',
-        video: selectedVideo,
-        camera_id: selectedCamera,
-        speed_mode: typeof speedMode === 'string' ? speedMode : 'fast'
-      });
+      if (sendCommand) {
+        sendCommand({
+          action: 'start_analysis',
+          video: selectedVideo,
+          camera_id: selectedCamera,
+          speed_mode: mode
+        });
+      }
     }
   };
 
@@ -375,6 +391,7 @@ export default function Dashboard() {
 
         {/* Dynamic Operational Page Views */}
         <main className="dashboard-content">
+          <ErrorBoundary>
           {activeSidebarItem === 'live-monitor' && (
             <LiveMonitorPage
               selectedCamera={selectedCamera}
@@ -488,7 +505,7 @@ export default function Dashboard() {
           )}
 
           {activeSidebarItem === 'system-status' && (
-            <SystemStatusPage />
+            <SystemStatusPage cameras={cameras} />
           )}
 
           {activeSidebarItem === 'settings' && (
@@ -496,6 +513,7 @@ export default function Dashboard() {
               cameras={cameras}
             />
           )}
+          </ErrorBoundary>
         </main>
       </div>
 

@@ -11,7 +11,7 @@
     <script>
       (function() {
         try {
-          var t = localStorage.getItem('ibvap_theme') || 'dark';
+          var t = localStorage.getItem('ibvap_theme') || 'light';
           var isDark = (t === 'dark' || t === 'tactical-dark');
           var cssTheme = isDark ? 'tactical-dark' : (t === 'night-ops' ? 'night-ops' : (t === 'high-contrast' ? 'high-contrast' : 'tactical-light'));
           var generic = isDark ? 'dark' : 'light';

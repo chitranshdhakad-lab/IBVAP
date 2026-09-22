@@ -65,7 +65,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "system_name": "IBVAP - Border Surveillance System",
     "time_zone": "Asia/Kolkata",
     "language": "en",
-    "theme": "dark",
+    "theme": "light",
     # ANPR (Automatic Number Plate Recognition) Settings
     "anpr_enabled": True,
     "anpr_confidence_threshold": 0.70,

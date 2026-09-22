@@ -27,41 +27,37 @@ _server_start_time = time.time()
 
 def _get_server_uptime_str() -> str:
     uptime_sec = int(time.time() - _server_start_time)
-    # Default presentation: e.g. 2d 14h or calculated from uptime
     days = uptime_sec // 86400
     hours = (uptime_sec % 86400) // 3600
+    mins = (uptime_sec % 3600) // 60
     if days > 0:
         return f"{days}d {hours}h"
     elif hours > 0:
-        return f"{hours}h {(uptime_sec % 3600) // 60}m"
+        return f"{hours}h {mins}m"
     else:
-        return "2d 14h" # Default baseline displayed in reference mockup
+        return f"{mins}m {uptime_sec % 60}s"
 
 def _get_cpu_history(current_cpu: float) -> List[Dict[str, Any]]:
-    """Returns smooth 1-hour timeline points for sparkline."""
+    """Returns actual measured CPU points for sparkline."""
     global _cpu_history_buffer
     now = datetime.datetime.now()
-    
-    # Initialize 1-hour window (12 points at 5-min intervals) if empty
-    if len(_cpu_history_buffer) < 12:
-        _cpu_history_buffer = []
-        for i in range(12, 0, -1):
-            t = now - datetime.timedelta(minutes=i * 5)
-            # Smooth wave between 35% and 55%
-            val = round(42 + 8 * math.sin(i * 0.8) + (random.random() * 4 - 2), 1)
+
+    if not _cpu_history_buffer:
+        for i in range(5, 0, -1):
+            t = now - datetime.timedelta(minutes=i * 2)
             _cpu_history_buffer.append({
                 "time": t.strftime("%H:%M"),
-                "usage": max(10, min(95, val))
+                "usage": round(current_cpu, 1)
             })
-    
-    # Append current point
+
     _cpu_history_buffer.append({
         "time": now.strftime("%H:%M"),
         "usage": round(current_cpu, 1)
     })
-    
+
     if len(_cpu_history_buffer) > 20:
         _cpu_history_buffer.pop(0)
+
         
     return _cpu_history_buffer
 
@@ -192,8 +188,6 @@ def get_status_dashboard(db: Session = Depends(get_db)):
     try:
         import psutil
         cpu_percent = round(psutil.cpu_percent(interval=0.05), 1)
-        if cpu_percent < 5:
-            cpu_percent = 42.0  # realistic operational display
         mem = psutil.virtual_memory()
         mem_used_gb = round(mem.used / (1024**3), 1)
         mem_total_gb = round(mem.total / (1024**3), 1)
@@ -204,18 +198,16 @@ def get_status_dashboard(db: Session = Depends(get_db)):
         disk_total_gb = round(total_b / (1024**3), 1)
         disk_percent = int((used_b / total_b) * 100)
     except Exception:
-        cpu_percent = 42.0
-        mem_used_gb = 5.4
+        cpu_percent = 0.0
+        mem_used_gb = 0.0
         mem_total_gb = 8.0
-        mem_percent = 68
-        disk_used_gb = 132.0
+        mem_percent = 0
+        disk_used_gb = 0.0
         disk_total_gb = 240.0
-        disk_percent = 55
+        disk_percent = 0
 
     # CPU processor model
-    cpu_model = platform.processor() or "Intel i5 11th Gen"
-    if "Intel" not in cpu_model and "AMD" not in cpu_model:
-        cpu_model = "Intel i5 11th Gen"
+    cpu_model = platform.processor() or "Surveillance Edge Processor"
 
     # 2. Cameras & Database
     cams = db.query(Camera).all()
@@ -225,14 +217,16 @@ def get_status_dashboard(db: Session = Depends(get_db)):
 
     # 3. AI Inference Status
     job_info = job_manager.to_dict()
-    current_fps = round(job_info.get("fps", 32.4), 1)
-    if not job_info.get("is_active"):
-        current_fps = 32.4
-    ai_status = "Running"
-    ai_subtext = f"YOLOv8 • {current_fps} FPS"
+    if job_info.get("is_active"):
+        current_fps = round(job_info.get("fps", 25.0), 1)
+        ai_status = "Running"
+        ai_subtext = f"YOLOv8 • {current_fps} FPS"
+    else:
+        current_fps = 0.0
+        ai_status = "Standby"
+        ai_subtext = "YOLOv8 Engine Ready"
 
     # 4. Storage Breakdown
-    # Calculate real sizes of directories
     def get_dir_size_gb(p: Path) -> float:
         try:
             if not p.exists():
@@ -243,20 +237,20 @@ def get_status_dashboard(db: Session = Depends(get_db)):
             return 0.0
 
     video_storage_used = get_dir_size_gb(STORAGE_DIR / "videos")
-    if video_storage_used < 1.0:
-        video_storage_used = 148.0
-    video_storage_total = 240.0
-    video_pct = int((video_storage_used / video_storage_total) * 100)
+    video_storage_total = disk_total_gb
+    video_pct = max(1, int((video_storage_used / max(video_storage_total, 1.0)) * 100))
 
     db_file = STORAGE_DIR / "surveillance.db"
-    db_size_mb = round(db_file.stat().st_size / (1024 * 1024), 1) if db_file.exists() else 2100.0
-    db_size_gb = round(db_size_mb / 1024, 1) if db_size_mb > 500 else 2.1
-    db_storage_total = 8.0
-    db_pct = int((db_size_gb / db_storage_total) * 100)
+    db_size_mb = round(db_file.stat().st_size / (1024 * 1024), 2) if db_file.exists() else 0.0
+    db_size_gb = round(db_size_mb / 1024, 3)
+    db_storage_total = disk_total_gb
+    db_pct = max(1, int((db_size_gb / max(db_storage_total, 1.0)) * 100))
 
-    log_size_gb = 1.8
-    log_storage_total = 5.0
-    log_pct = int((log_size_gb / log_storage_total) * 100)
+    evidence_storage_used = get_dir_size_gb(STORAGE_DIR / "evidence")
+    log_size_gb = evidence_storage_used
+    log_storage_total = disk_total_gb
+    log_pct = max(1, int((log_size_gb / max(log_storage_total, 1.0)) * 100))
+
 
     # 5. Service Status (8 core services)
     uptime_str = _get_server_uptime_str()
@@ -308,20 +302,6 @@ def get_status_dashboard(db: Session = Depends(get_db)):
             "message": l.details or f"Action {l.action} recorded"
         })
 
-    # If few logs, provide reference-matching surveillance diagnostics
-    if len(logs_output) < 8:
-        base_time = now
-        default_logs = [
-            {"time": (base_time - datetime.timedelta(seconds=8)).strftime("%H:%M:%S"), "level": "INFO", "component": "Camera CAM-03", "message": "Frame processed successfully"},
-            {"time": (base_time - datetime.timedelta(seconds=10)).strftime("%H:%M:%S"), "level": "WARNING", "component": "ANPR", "message": "Low confidence in license plate detection"},
-            {"time": (base_time - datetime.timedelta(seconds=13)).strftime("%H:%M:%S"), "level": "INFO", "component": "AI Engine", "message": "4 objects detected (2 persons, 1 vehicle, 1 animal)"},
-            {"time": (base_time - datetime.timedelta(seconds=20)).strftime("%H:%M:%S"), "level": "INFO", "component": "Database", "message": f"Event log saved (ID: EVT-{base_time.strftime('%Y%m%d-%H%M')})"},
-            {"time": (base_time - datetime.timedelta(seconds=33)).strftime("%H:%M:%S"), "level": "INFO", "component": "API", "message": "GET /api/cameras - 200 OK"},
-            {"time": (base_time - datetime.timedelta(seconds=48)).strftime("%H:%M:%S"), "level": "ERROR", "component": "Camera CAM-07", "message": "No feed received (reconnecting...)"},
-            {"time": (base_time - datetime.timedelta(seconds=50)).strftime("%H:%M:%S"), "level": "INFO", "component": "Camera CAM-07", "message": "Reconnected successfully"},
-            {"time": (base_time - datetime.timedelta(seconds=66)).strftime("%H:%M:%S"), "level": "INFO", "component": "System", "message": "Health check completed - All services running"}
-        ]
-        logs_output = default_logs + logs_output
 
     return {
         "last_updated": now_formatted,
@@ -545,28 +525,28 @@ def test_camera_feeds(db: Session = Depends(get_db)):
         cams = db.query(Camera).all()
         results = []
         if not cams:
-            # Default stations
-            cams = [
-                Camera(id="CAM-01", name="North Perimeter", status="ACTIVE"),
-                Camera(id="CAM-02", name="River Crossing", status="ACTIVE"),
-                Camera(id="CAM-03", name="Ridge Line", status="ACTIVE"),
-                Camera(id="CAM-04", name="South Gate", status="ACTIVE"),
-                Camera(id="CAM-05", name="Valley Checkpoint", status="ACTIVE")
-            ]
+            return {
+                "success": True,
+                "message": "No camera stations registered in database.",
+                "cameras": [],
+                "timestamp": datetime.datetime.now().strftime("%H:%M:%S")
+            }
 
-        # Latency profiles
+        # Latency profiles based on active ping simulation
         latencies = [32, 45, 38, 60, 41, 35, 52]
         for idx, c in enumerate(cams):
             lat = latencies[idx % len(latencies)]
+            cam_stat = (c.status or "ACTIVE").upper()
             results.append({
                 "camera_id": c.id,
                 "name": c.name or f"Camera {c.id}",
-                "status": "ONLINE",
+                "status": "ONLINE" if cam_stat in ["ACTIVE", "ONLINE", "LIVE"] else "STANDBY",
                 "latency_ms": lat,
                 "resolution": "1920x1080 @ 30fps",
                 "packet_loss": "0.0%",
                 "bitrate": "4.2 Mbps"
             })
+
 
         log_audit(
             db=db,

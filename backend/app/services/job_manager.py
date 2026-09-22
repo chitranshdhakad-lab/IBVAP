@@ -20,7 +20,7 @@ class SurveillanceJobManager:
         self.fps: float = 25.0
         self.detections_count: int = 0
         self.events_count: int = 0
-        self.current_threat_score: int = 10
+        self.current_threat_score: int = 0
         self.stop_requested: bool = False
         self.pause_requested: bool = False
         self.error_message: Optional[str] = None
@@ -82,7 +82,7 @@ class SurveillanceJobManager:
             self.fps = fps
             self.detections_count = 0
             self.events_count = 0
-            self.current_threat_score = 10
+            self.current_threat_score = 0
             self.stop_requested = False
             self.pause_requested = False
             self.error_message = None
@@ -101,6 +101,10 @@ class SurveillanceJobManager:
             self.events_count += events_increment
             if threat_score is not None:
                 self.current_threat_score = threat_score
+        
+        # Persist frame count progress to DB every 30 frames
+        if processed_frames % 30 == 0:
+            self._persist_to_db(self.status)
 
     def pause_job(self):
         with self._lock:
@@ -152,7 +156,7 @@ class SurveillanceJobManager:
             self.total_frames = 0
             self.detections_count = 0
             self.events_count = 0
-            self.current_threat_score = 10
+            self.current_threat_score = 0
             self.stop_requested = False
             self.pause_requested = False
             self.error_message = None

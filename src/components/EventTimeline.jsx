@@ -128,8 +128,7 @@ export default function EventTimeline({
                   alt={snap.label}
                   className="snap-card-img"
                   onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/assets/snapshot-person.jpg';
+                    e.target.style.display = 'none';
                   }}
                 />
                 <div className="snap-card-meta">

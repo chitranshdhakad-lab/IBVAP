@@ -156,11 +156,11 @@ export default function VehicleANPRPage({ cameras = [] }) {
           </div>
           <div>
             <div className="anpr-title-row">
-              <h1 className="anpr-main-title">AUTOMATIC NUMBER PLATE RECOGNITION (ANPR) & VEHICLE RECON</h1>
-              <span className="anpr-class-tag font-mono">MIL-STD 188 // SECURE LEDGER</span>
+              <h1 className="anpr-main-title">{t('anprMainTitle')}</h1>
+              <span className="anpr-class-tag font-mono">{t('anprMilStd')}</span>
             </div>
             <p className="anpr-subtitle">
-              High-accuracy vehicle localization, optical character extraction, HSRP syntax validation, and border cross-check against suspect vehicle watchlists.
+              {t('anprSubtitle')}
             </p>
           </div>
         </div>
@@ -173,7 +173,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             title="Manage Hotlist & Suspect Vehicle Watchlist"
           >
             <ShieldAlert size={14} className="text-amber-400" />
-            <span>Hotlist Watchlist ({watchlist.length})</span>
+            <span>{t('hotlistWatchlist')} ({watchlist.length})</span>
           </button>
 
           <button
@@ -183,7 +183,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             title="Export detected plates ledger as CSV"
           >
             <Download size={14} />
-            <span>Export CSV</span>
+            <span>{t('exportCsv')}</span>
           </button>
 
           <button
@@ -194,7 +194,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             title="Sync ANPR database"
           >
             <RefreshCw size={13} className={isLoading ? 'spin-icon' : ''} />
-            <span>Sync Feed</span>
+            <span>{t('syncFeed')}</span>
           </button>
         </div>
       </div>
@@ -202,34 +202,34 @@ export default function VehicleANPRPage({ cameras = [] }) {
       {/* 2. Tactical ANPR Telemetry Summary Cards */}
       <div className="anpr-metrics-strip font-mono">
         <div className="anpr-metric-card">
-          <span className="metric-lbl">SCANNED TODAY</span>
+          <span className="metric-lbl">{t('scannedToday')}</span>
           <div className="metric-val-row">
             <span className="metric-num text-sky-400">{stats?.scans_today || totalCount || 42}</span>
-            <span className="metric-badge">VEHICLES</span>
+            <span className="metric-badge">{t('vehicles')}</span>
           </div>
         </div>
 
         <div className="anpr-metric-card">
-          <span className="metric-lbl">WATCHLIST / SUSPECT HITS</span>
+          <span className="metric-lbl">{t('suspectHits')}</span>
           <div className="metric-val-row">
             <span className="metric-num text-rose-500">{stats?.suspect_hits || 2}</span>
-            <span className="metric-badge badge-danger">FLAGGED</span>
+            <span className="metric-badge badge-danger">{t('flagged')}</span>
           </div>
         </div>
 
         <div className="anpr-metric-card">
-          <span className="metric-lbl">RECOGNITION ACCURACY</span>
+          <span className="metric-lbl">{t('recognitionAccuracy')}</span>
           <div className="metric-val-row">
             <span className="metric-num text-emerald-400">{stats?.recognition_accuracy || '95.4%'}</span>
-            <span className="metric-badge badge-success">HSRP OPT</span>
+            <span className="metric-badge badge-success">{t('hsrpOpt')}</span>
           </div>
         </div>
 
         <div className="anpr-metric-card">
-          <span className="metric-lbl">ACTIVE WATCHLIST PLATES</span>
+          <span className="metric-lbl">{t('activeWatchlistPlates')}</span>
           <div className="metric-val-row">
             <span className="metric-num text-amber-400">{stats?.active_watchlist_count || watchlist.length}</span>
-            <span className="metric-badge">MONITORED</span>
+            <span className="metric-badge">{t('monitored')}</span>
           </div>
         </div>
       </div>
@@ -238,7 +238,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
       <div className="anpr-live-ticker-wrap">
         <div className="ticker-label font-mono">
           <span className="ticker-pulse-dot" />
-          <span>LIVE SCANS</span>
+          <span>{t('liveScans')}</span>
         </div>
         <div className="ticker-items-scroll font-mono">
           {plates.slice(0, 6).map((p) => {
@@ -255,7 +255,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   <span className="ticker-num">{p.plate_number}</span>
                 </div>
                 <span className="ticker-meta">{p.vehicle_type} • {p.camera_id}</span>
-                {isFlagged && <span className="ticker-warn-tag">⚠ SUSPECT</span>}
+                {isFlagged && <span className="ticker-warn-tag">⚠ {t('suspect')}</span>}
               </div>
             );
           })}
@@ -270,7 +270,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
           <input
             type="text"
             className="anpr-search-input font-mono"
-            placeholder="Search plate (e.g. DL 01, JK 02, 9876, Bolero)..."
+            placeholder={t('searchPlatePlaceholder')}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -283,13 +283,13 @@ export default function VehicleANPRPage({ cameras = [] }) {
 
         {/* State Filter */}
         <div className="anpr-filter-item">
-          <label className="filter-lbl font-mono">STATE/UT:</label>
+          <label className="filter-lbl font-mono">{t('stateUt')}</label>
           <select
             className="anpr-filter-select font-mono"
             value={selectedState}
             onChange={(e) => setSelectedState(e.target.value)}
           >
-            <option value="ALL">All States / UTs</option>
+            <option value="ALL">{t('allStates')}</option>
             <option value="DL">Delhi (DL)</option>
             <option value="JK">Jammu & Kashmir (JK)</option>
             <option value="PB">Punjab (PB)</option>
@@ -303,29 +303,29 @@ export default function VehicleANPRPage({ cameras = [] }) {
 
         {/* Status Filter */}
         <div className="anpr-filter-item">
-          <label className="filter-lbl font-mono">STATUS:</label>
+          <label className="filter-lbl font-mono">{t('status')}</label>
           <select
             className="anpr-filter-select font-mono"
             value={selectedStatus}
             onChange={(e) => setSelectedStatus(e.target.value)}
           >
-            <option value="ALL">All Statuses</option>
-            <option value="NORMAL">Normal / Clear</option>
-            <option value="SUSPECT">Watchlist / Suspect</option>
-            <option value="FLAGGED_STOLEN">Reported Stolen</option>
-            <option value="ARMY_AUTHORIZED">Military Authorized</option>
+            <option value="ALL">{t('allStatuses')}</option>
+            <option value="NORMAL">{t('statusNormal')}</option>
+            <option value="SUSPECT">{t('statusSuspect')}</option>
+            <option value="FLAGGED_STOLEN">{t('statusFlaggedStolen')}</option>
+            <option value="ARMY_AUTHORIZED">{t('statusArmyAuthorized')}</option>
           </select>
         </div>
 
         {/* Camera Station Filter */}
         <div className="anpr-filter-item">
-          <label className="filter-lbl font-mono">STATION:</label>
+          <label className="filter-lbl font-mono">{t('station')}</label>
           <select
             className="anpr-filter-select font-mono"
             value={selectedCamera}
             onChange={(e) => setSelectedCamera(e.target.value)}
           >
-            <option value="ALL">All Cameras</option>
+            <option value="ALL">{t('allCameras')}</option>
             <option value="CAM-01">CAM-01 (North Perimeter)</option>
             <option value="CAM-02">CAM-02 (River Crossing)</option>
             <option value="CAM-03">CAM-03 (Ridge Line)</option>
@@ -341,7 +341,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             onClick={() => setViewMode('grid')}
             title="Card Grid View with Plate Snapshots"
           >
-            Grid
+            {t('viewGrid')}
           </button>
           <button
             type="button"
@@ -349,7 +349,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             onClick={() => setViewMode('table')}
             title="Compact Administrative Table"
           >
-            Table
+            {t('viewTable')}
           </button>
         </div>
       </div>
@@ -391,23 +391,23 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   {/* Vehicle Details */}
                   <div className="plate-card-details font-mono">
                     <div className="plate-detail-row">
-                      <span className="detail-key">VEHICLE TYPE:</span>
+                      <span className="detail-key">{t('vehicleType')}</span>
                       <span className="detail-val">{p.vehicle_type}</span>
                     </div>
                     <div className="plate-detail-row">
-                      <span className="detail-key">ORIGIN STATE:</span>
+                      <span className="detail-key">{t('originState')}</span>
                       <span className="detail-val text-sky-400">{p.state_name || p.state_code || 'National'}</span>
                     </div>
                     <div className="plate-detail-row">
-                      <span className="detail-key">DIRECTION:</span>
+                      <span className="detail-key">{t('direction')}</span>
                       <span className="detail-val">{p.direction}</span>
                     </div>
                     <div className="plate-detail-row">
-                      <span className="detail-key">SPEED:</span>
+                      <span className="detail-key">{t('speed')}</span>
                       <span className="detail-val text-amber-400">{p.speed_estimate}</span>
                     </div>
                     <div className="plate-detail-row">
-                      <span className="detail-key">OCR ACCURACY:</span>
+                      <span className="detail-key">{t('ocrAccuracy')}</span>
                       <span className="detail-val text-emerald-400">{intToPct(p.confidence)}</span>
                     </div>
                   </div>
@@ -426,7 +426,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                       <Clock size={11} /> {formatTime(p.created_at)}
                     </span>
                     <span className="btn-inspect-link">
-                      <span>Inspect</span>
+                      <span>{t('inspect')}</span>
                       <ChevronRight size={12} />
                     </span>
                   </div>
@@ -436,7 +436,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
           ) : (
             <div className="anpr-empty-state font-mono">
               <Car size={36} className="text-slate-600" />
-              <span>Zero matching vehicle plates in active ledger.</span>
+              <span>{t('zeroMatchingPlates')}</span>
             </div>
           )}
         </div>
@@ -446,16 +446,16 @@ export default function VehicleANPRPage({ cameras = [] }) {
           <table className="anpr-ledger-table font-mono">
             <thead>
               <tr>
-                <th>STATUS</th>
-                <th>PLATE NUMBER</th>
-                <th>STATE / REGION</th>
-                <th>VEHICLE TYPE</th>
-                <th>CAMERA / GATE</th>
-                <th>SPEED</th>
-                <th>DIRECTION</th>
-                <th>TIMESTAMP</th>
-                <th>CONFIDENCE</th>
-                <th>ACTION</th>
+                <th>{t('status')}</th>
+                <th>{t('plateNumber')}</th>
+                <th>{t('stateRegion')}</th>
+                <th>{t('vehicleType')}</th>
+                <th>{t('cameraGate')}</th>
+                <th>{t('speed')}</th>
+                <th>{t('direction')}</th>
+                <th>{t('timestamp')}</th>
+                <th>{t('confidence')}</th>
+                <th>{t('action')}</th>
               </tr>
             </thead>
             <tbody>
@@ -490,7 +490,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                         title="Inspect plate crop and vehicle image"
                       >
                         <Eye size={12} />
-                        <span>Inspect</span>
+                        <span>{t('inspect')}</span>
                       </button>
                     </td>
                   </tr>
@@ -509,8 +509,8 @@ export default function VehicleANPRPage({ cameras = [] }) {
               <div className="dialog-title-group">
                 <Car size={18} className="text-sky-400" />
                 <div>
-                  <h3 className="dialog-title">VEHICLE INTELLIGENCE DOSSIER // {inspectedPlate.plate_number}</h3>
-                  <span className="dialog-sub font-mono">CAMERA: {inspectedPlate.camera_id} • RECORD #{inspectedPlate.id}</span>
+                  <h3 className="dialog-title">{t('vehicleIntelligenceDossier')} // {inspectedPlate.plate_number}</h3>
+                  <span className="dialog-sub font-mono">{t('cameraLabel')}: {inspectedPlate.camera_id} • {t('recordLabel')} #{inspectedPlate.id}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -521,7 +521,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   title="Go Back"
                 >
                   <ArrowLeft size={14} />
-                  <span>Back</span>
+                  <span>{t('back')}</span>
                 </button>
                 <button type="button" className="dialog-close-btn" onClick={() => setInspectedPlate(null)}>
                   <X size={16} />
@@ -543,14 +543,14 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   </div>
                 </div>
                 <div className="inspect-status-badge font-mono">
-                  STATUS: {inspectedPlate.status}
+                  {t('status')} {inspectedPlate.status}
                 </div>
               </div>
 
               {/* Crop image preview if available */}
               {inspectedPlate.crop_image_path && (
                 <div className="inspect-image-box">
-                  <span className="image-box-title font-mono">OPTICAL LICENSE PLATE CROP:</span>
+                  <span className="image-box-title font-mono">{t('opticalPlateCrop')}</span>
                   <img src={inspectedPlate.crop_image_path} alt="Plate crop" className="plate-crop-preview" />
                 </div>
               )}
@@ -558,27 +558,27 @@ export default function VehicleANPRPage({ cameras = [] }) {
               {/* Data Grid */}
               <div className="inspect-meta-grid font-mono">
                 <div className="meta-box">
-                  <span className="meta-lbl">VEHICLE CLASSIFICATION</span>
+                  <span className="meta-lbl">{t('vehicleClassification')}</span>
                   <span className="meta-val">{inspectedPlate.vehicle_type}</span>
                 </div>
                 <div className="meta-box">
-                  <span className="meta-lbl">REGISTRATION STATE</span>
+                  <span className="meta-lbl">{t('registrationState')}</span>
                   <span className="meta-val text-sky-400">{inspectedPlate.state_name} ({inspectedPlate.state_code})</span>
                 </div>
                 <div className="meta-box">
-                  <span className="meta-lbl">SPEED ESTIMATION</span>
+                  <span className="meta-lbl">{t('speedEstimation')}</span>
                   <span className="meta-val text-amber-400">{inspectedPlate.speed_estimate}</span>
                 </div>
                 <div className="meta-box">
-                  <span className="meta-lbl">HEADING DIRECTION</span>
+                  <span className="meta-lbl">{t('headingDirection')}</span>
                   <span className="meta-val">{inspectedPlate.direction}</span>
                 </div>
                 <div className="meta-box">
-                  <span className="meta-lbl">DETECTION TIMESTAMP</span>
+                  <span className="meta-lbl">{t('detectionTimestamp')}</span>
                   <span className="meta-val">{inspectedPlate.created_at}</span>
                 </div>
                 <div className="meta-box">
-                  <span className="meta-lbl">OCR ENGINE CONFIDENCE</span>
+                  <span className="meta-lbl">{t('ocrEngineConfidence')}</span>
                   <span className="meta-val text-emerald-400">{intToPct(inspectedPlate.confidence)}</span>
                 </div>
               </div>
@@ -587,7 +587,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                 <div className="inspect-flag-box font-mono">
                   <AlertTriangle size={16} className="text-rose-400 flex-shrink-0" />
                   <div>
-                    <span className="flag-title">HOTLIST ALERT REASON:</span>
+                    <span className="flag-title">{t('hotlistAlertReason')}</span>
                     <p className="flag-desc">{inspectedPlate.flag_reason}</p>
                   </div>
                 </div>
@@ -605,7 +605,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                 }}
               >
                 <ShieldAlert size={14} />
-                <span>Add to Watchlist</span>
+                <span>{t('addToWatchlist')}</span>
               </button>
               <button
                 type="button"
@@ -613,7 +613,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                 onClick={() => setInspectedPlate(null)}
               >
                 <ArrowLeft size={13} />
-                <span>Back</span>
+                <span>{t('back')}</span>
               </button>
             </div>
           </div>
@@ -628,8 +628,8 @@ export default function VehicleANPRPage({ cameras = [] }) {
               <div className="dialog-title-group">
                 <ShieldAlert size={20} className="text-amber-400" />
                 <div>
-                  <h3 className="dialog-title">BORDER SURVEILLANCE VEHICLE WATCHLIST // HOTLIST</h3>
-                  <span className="dialog-sub font-mono">AUTOMATED IMMEDIATE ALERT ON PLATE DETECTION</span>
+                  <h3 className="dialog-title">{t('borderWatchlistTitle')}</h3>
+                  <span className="dialog-sub font-mono">{t('automatedImmediateAlert')}</span>
                 </div>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -640,7 +640,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   title="Go Back"
                 >
                   <ArrowLeft size={14} />
-                  <span>Back</span>
+                  <span>{t('back')}</span>
                 </button>
                 <button type="button" className="dialog-close-btn" onClick={() => setIsWatchlistOpen(false)}>
                   <X size={16} />
@@ -652,7 +652,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
             <div className="watchlist-dialog-body">
               {/* Add New Plate Form */}
               <form onSubmit={handleAddWatchlist} className="watchlist-add-form">
-                <h4 className="form-section-title font-mono">+ ENROL VEHICLE ON HOTLIST</h4>
+                <h4 className="form-section-title font-mono">{t('enrolVehicleHotlist')}</h4>
 
                 {watchlistMsg && (
                   <div className={`auth-alert-box ${watchlistMsg.type === 'success' ? 'alert-success' : 'alert-danger'}`}>
@@ -662,7 +662,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
 
                 <div className="form-grid-row">
                   <div className="form-field font-mono">
-                    <label>LICENSE PLATE NUMBER *</label>
+                    <label>{t('licensePlateNumber')}</label>
                     <input
                       type="text"
                       className="watchlist-input"
@@ -674,37 +674,37 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   </div>
 
                   <div className="form-field font-mono">
-                    <label>WATCHLIST CATEGORY</label>
+                    <label>{t('watchlistCategory')}</label>
                     <select
                       className="watchlist-select"
                       value={newWatchlistPlate.category}
                       onChange={(e) => setNewWatchlistPlate({ ...newWatchlistPlate, category: e.target.value })}
                     >
-                      <option value="STOLEN">Reported Stolen Vehicle</option>
-                      <option value="SUSPECT_SMUGGLING">Suspect Contraband Smuggling</option>
-                      <option value="UNAUTHORIZED_CROSSING">Unauthorized Checkpoint Breach</option>
-                      <option value="ARMY_OFFICIAL">Army Logistics Whitelist</option>
-                      <option value="VIP_WHITELIST">Government VIP Whitelist</option>
+                      <option value="STOLEN">{t('reportedStolenVehicle')}</option>
+                      <option value="SUSPECT_SMUGGLING">{t('suspectSmuggling')}</option>
+                      <option value="UNAUTHORIZED_CROSSING">{t('unauthorizedCheckpoint')}</option>
+                      <option value="ARMY_OFFICIAL">{t('armyLogisticsWhitelist')}</option>
+                      <option value="VIP_WHITELIST">{t('govVipWhitelist')}</option>
                     </select>
                   </div>
 
                   <div className="form-field font-mono">
-                    <label>ALERT SEVERITY</label>
+                    <label>{t('alertSeverity')}</label>
                     <select
                       className="watchlist-select"
                       value={newWatchlistPlate.severity}
                       onChange={(e) => setNewWatchlistPlate({ ...newWatchlistPlate, severity: e.target.value })}
                     >
-                      <option value="Critical">Critical (Immediate Alarm)</option>
-                      <option value="High">High Priority</option>
-                      <option value="Medium">Medium</option>
-                      <option value="Info">Info Only (Whitelist)</option>
+                      <option value="Critical">{t('criticalImmediateAlarm')}</option>
+                      <option value="High">{t('highPriority')}</option>
+                      <option value="Medium">{t('mediumPriority')}</option>
+                      <option value="Info">{t('infoOnlyWhitelist')}</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="form-field font-mono" style={{ marginTop: '8px' }}>
-                  <label>DESCRIPTION & REASON FOR LISTING</label>
+                  <label>{t('descriptionReason')}</label>
                   <input
                     type="text"
                     className="watchlist-input"
@@ -720,21 +720,21 @@ export default function VehicleANPRPage({ cameras = [] }) {
                   disabled={isAddingWatchlist}
                 >
                   <Plus size={14} />
-                  <span>Enrol on Active Watchlist</span>
+                  <span>{t('enrolActiveWatchlist')}</span>
                 </button>
               </form>
 
               {/* Active Watchlist Table */}
               <div className="watchlist-table-wrap">
-                <h4 className="form-section-title font-mono">ACTIVE WATCHLIST ENTRIES ({watchlist.length})</h4>
+                <h4 className="form-section-title font-mono">{t('activeWatchlistEntries')} ({watchlist.length})</h4>
                 <table className="watchlist-table font-mono">
                   <thead>
                     <tr>
-                      <th>PLATE NUMBER</th>
-                      <th>CATEGORY</th>
-                      <th>SEVERITY</th>
-                      <th>REASON</th>
-                      <th>ACTION</th>
+                      <th>{t('plateNumber')}</th>
+                      <th>{t('watchlistCategory')}</th>
+                      <th>{t('alertSeverity')}</th>
+                      <th>{t('reason')}</th>
+                      <th>{t('action')}</th>
                     </tr>
                   </thead>
                   <tbody>

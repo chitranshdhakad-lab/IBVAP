@@ -19,7 +19,7 @@ export function useSurveillanceWebSocket(cameraId = 'CAM-01') {
   });
 
   const [threatAssessment, setThreatAssessment] = useState({
-    score: 10,
+    score: 0,
     level: 'SECURE',
     description: 'Sector monitoring initialized. Standby.',
     key_factors: ['Perimeter scanning armed']
@@ -38,10 +38,18 @@ export function useSurveillanceWebSocket(cameraId = 'CAM-01') {
     setLiveIntelligence({ persons: 0, vehicles: 0, animals: 0, active_tracks: 0 });
     setActiveEntities([]);
     setLatestEvent(null);
+    setThreatAssessment({
+      score: 0,
+      level: 'SECURE',
+      description: 'Sector monitoring initialized. Standby.',
+      key_factors: ['Perimeter scanning armed']
+    });
     setAnalysisActive(false);
 
     const connect = () => {
-      const wsUrl = `ws://localhost:8000/ws/live/${cameraId}`;
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const host = window.location.hostname || 'localhost';
+      const wsUrl = `${protocol}//${host}:8000/ws/live/${cameraId}`;
       try {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;
@@ -128,6 +136,14 @@ export function useSurveillanceWebSocket(cameraId = 'CAM-01') {
   }, [cameraId]);
 
   const sendCommand = useCallback((cmd) => {
+    if (cmd?.action === 'stop_analysis') {
+      setAnalysisActive(false);
+      setJobStatus('STOPPED');
+      setActiveEntities([]);
+    } else if (cmd?.action === 'start_analysis') {
+      setAnalysisActive(true);
+      setJobStatus('RUNNING');
+    }
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify(cmd));
     }

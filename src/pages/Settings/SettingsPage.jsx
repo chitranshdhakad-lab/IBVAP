@@ -138,11 +138,16 @@ export default function SettingsPage({ cameras = [] }) {
       });
       if (res.ok) {
         localStorage.removeItem('ibvap_system_settings');
-        localStorage.removeItem('ibvap_theme');
-        applyThemeToDOM('dark');
-        const def = getStoredSettings();
+        localStorage.setItem('ibvap_theme', 'light');
+        applyThemeToDOM('light');
+        const def = { ...DEFAULT_SETTINGS, theme: 'light' };
+        localStorage.setItem('ibvap_system_settings', JSON.stringify(def));
         setSettings(def);
-        setResetMsg({ type: 'success', text: 'All settings restored to factory defaults.' });
+        window.dispatchEvent(new CustomEvent('ibvap_settings_changed', { detail: def }));
+        setResetMsg({ type: 'success', text: 'All settings restored to factory defaults (Light mode active).' });
+      } else {
+        const err = await res.json();
+        setResetMsg({ type: 'error', text: err.detail || 'Reset failed' });
       }
     } catch (e) {
       setResetMsg({ type: 'error', text: e.message });
@@ -151,7 +156,8 @@ export default function SettingsPage({ cameras = [] }) {
 
   // Purge all operational data
   const handlePurgeData = async () => {
-    if (resetConfirmText !== 'RESET IBVAP') {
+    const trimmed = (resetConfirmText || '').trim().toUpperCase();
+    if (trimmed !== 'RESET IBVAP') {
       alert('You must type exactly "RESET IBVAP" to confirm.');
       return;
     }
@@ -316,8 +322,8 @@ export default function SettingsPage({ cameras = [] }) {
                   value={settings.theme}
                   onChange={(e) => updateField('theme', e.target.value)}
                 >
-                  <option value="dark">Dark (Default Command Console)</option>
-                  <option value="light">Light (Daytime Command Console)</option>
+                  <option value="light">Light (Default Command Console)</option>
+                  <option value="dark">Dark (Night Command Console)</option>
                   <option value="night-ops">Night Ops (Tactical Green)</option>
                   <option value="high-contrast">High Contrast (Monochrome)</option>
                 </select>
@@ -1069,7 +1075,7 @@ export default function SettingsPage({ cameras = [] }) {
             </div>
             <button
               className="btn-danger"
-              disabled={resetConfirmText !== 'RESET IBVAP' || isResetting}
+              disabled={(resetConfirmText || '').trim().toUpperCase() !== 'RESET IBVAP' || isResetting}
               onClick={handlePurgeData}
             >
               <Trash2 size={13} style={{ marginRight: 6 }} />

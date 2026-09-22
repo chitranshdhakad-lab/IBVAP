@@ -19,7 +19,7 @@ export default function Sidebar({ activeItem, setActiveItem, unverifiedCount = 0
     { id: 'live-monitor', label: t('liveMonitor'), icon: Monitor },
     { id: 'video-library', label: t('videoLibrary'), icon: Film },
     { id: 'events-alerts', label: t('eventsAlerts'), icon: AlertTriangle, badge: unverifiedCount > 0 ? unverifiedCount : null },
-    { id: 'vehicle-anpr', label: 'Vehicle ANPR', icon: Car },
+    { id: 'vehicle-anpr', label: t('vehicleAnprNav'), icon: Car },
     { id: 'border-map', label: t('borderMap'), icon: MapPin },
     { id: 'analytics', label: t('analytics'), icon: BarChart3 },
     { id: 'camera-management', label: t('cameraManagement'), icon: Camera },

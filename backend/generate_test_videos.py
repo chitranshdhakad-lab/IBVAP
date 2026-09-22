@@ -156,6 +156,42 @@ def generate_border_video(filename, width=960, height=540, num_frames=270, fps=3
                 cv2.putText(frame, "DL08CK2024", (px_plate + ind_w + 3, py_plate + int(ph * 0.72)),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.35 * scale, (0, 0, 0), 1, cv2.LINE_AA)
 
+        elif scenario == "multi_object":
+            # 1. Target 1 (Patrol Officer): moves left to right along fence across all frames
+            px1 = int(width * 0.15 + t * width * 0.65)
+            py1 = fence_y + 25
+            head_r = 10
+            cv2.circle(frame, (px1, py1 - 35), head_r, (160, 190, 210), -1)
+            cv2.rectangle(frame, (px1 - 9, py1 - 25), (px1 + 9, py1), (35, 80, 50), -1)
+            leg_step1 = int(np.sin(i * 0.4) * 6)
+            cv2.line(frame, (px1 - 5, py1), (px1 - 5 + leg_step1, py1 + 22), (25, 40, 30), 4)
+            cv2.line(frame, (px1 + 5, py1), (px1 + 5 - leg_step1, py1 + 22), (25, 40, 30), 4)
+
+            # 2. Target 2 (Counter-Patrol / Intruder): enters at frame 20, moves right to left, exits at frame 240
+            if 20 <= i <= 240:
+                t2 = (i - 20) / (240 - 20)
+                px2 = int(width * 0.85 - t2 * width * 0.65)
+                py2 = fence_y + 25
+                cv2.circle(frame, (px2, py2 - 35), head_r, (150, 180, 200), -1)
+                cv2.rectangle(frame, (px2 - 9, py2 - 25), (px2 + 9, py2), (50, 45, 90), -1)
+                leg_step2 = int(np.sin(i * 0.4 + 1.5) * 6)
+                cv2.line(frame, (px2 - 5, py2), (px2 - 5 + leg_step2, py2 + 22), (20, 20, 40), 4)
+                cv2.line(frame, (px2 + 5, py2), (px2 + 5 - leg_step2, py2 + 22), (20, 20, 40), 4)
+
+            # 3. Target 3 (Approaching Perimeter Scout): enters at frame 60, approaches from background along road, exits at frame 210
+            if 60 <= i <= 210:
+                t3 = (i - 60) / (210 - 60)
+                px3 = int(width * 0.48 + np.sin(i * 0.1) * 15)
+                py3 = int(horizon + 50 + t3 * (height - horizon - 120))
+                s3 = 0.8 + 0.5 * t3
+                r3 = int(head_r * s3)
+                cv2.circle(frame, (px3, py3 - int(35 * s3)), r3, (170, 200, 220), -1)
+                bw3 = int(9 * s3)
+                cv2.rectangle(frame, (px3 - bw3, py3 - int(25 * s3)), (px3 + bw3, py3), (70, 60, 40), -1)
+                l3 = int(22 * s3)
+                cv2.line(frame, (px3 - int(5 * s3), py3), (px3 - int(5 * s3), py3 + l3), (30, 25, 20), max(3, int(4 * s3)))
+                cv2.line(frame, (px3 + int(5 * s3), py3), (px3 + int(5 * s3), py3 + l3), (30, 25, 20), max(3, int(4 * s3)))
+
         # Tactical HUD overlay
         cv2.putText(frame, f"CAM-01 // TACTICAL PATROL // FRM {i:04d}", (15, 25),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.45, (100, 220, 255), 1, cv2.LINE_AA)
@@ -169,7 +205,7 @@ def generate_border_video(filename, width=960, height=540, num_frames=270, fps=3
     print(f"Generated {filename} ({os.path.getsize(filepath)} bytes)")
 
 if __name__ == "__main__":
-    generate_border_video("Border_Test_03.mp4", scenario="Border_Test_03")
+    generate_border_video("video_multi_object_patrol.mp4", scenario="multi_object")
     generate_border_video("video_01_normal_patrol.mp4", scenario="patrol")
     generate_border_video("video_02_perimeter_breach.mp4", scenario="patrol")
     generate_border_video("video_03_vehicle_anpr_checkpoint.mp4", scenario="checkpoint")

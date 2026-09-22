@@ -301,23 +301,13 @@ def get_analytics_dashboard(
 
     # 5. Camera Wise Summary
     registered_cameras = db.query(Camera).all()
-    default_cams_meta = {
-        "CAM-01": {"location": "Sector A - North", "x": 38, "y": 44},
-        "CAM-02": {"location": "Sector A - East", "x": 58, "y": 55},
-        "CAM-03": {"location": "Sector B - Ridge", "x": 74, "y": 38},
-        "CAM-04": {"location": "Sector B - River", "x": 22, "y": 68},
-        "CAM-05": {"location": "Sector C - Valley", "x": 48, "y": 30}
-    }
-
     camera_summary = []
     heatmap_stations = []
 
-    cam_ids = [c.id for c in registered_cameras]
+    for cam_obj in registered_cameras:
+        cid = cam_obj.id
+        loc_str = cam_obj.location or f"Camera {cid} - {cam_obj.sector or 'Perimeter'}"
 
-    for cid in cam_ids:
-        cam_obj = next((c for c in registered_cameras if c.id == cid), None)
-        meta = default_cams_meta.get(cid, {"location": f"Sector {cid[-1]} - Post", "x": 50, "y": 50})
-        loc_str = (cam_obj.location if cam_obj and cam_obj.location else meta["location"])
 
         c_persons = db.query(Detection).filter(Detection.camera_id == cid, Detection.category == "person").count()
         c_vehicles = db.query(Detection).filter(Detection.camera_id == cid, Detection.category == "vehicle").count()
@@ -345,11 +335,19 @@ def get_analytics_dashboard(
             "status": "Online" if is_online else "Offline"
         })
 
+        default_coords = {
+            "CAM-01": (38, 44),
+            "CAM-02": (58, 55),
+            "CAM-03": (74, 38),
+            "CAM-04": (22, 68),
+        }
+        x_coord, y_coord = default_coords.get(cid, (50, 50))
+
         heatmap_stations.append({
             "camera_id": cid,
             "location": loc_str,
-            "x": meta["x"],
-            "y": meta["y"],
+            "x": x_coord,
+            "y": y_coord,
             "weight": weight,
             "persons": c_persons,
             "vehicles": c_vehicles,
@@ -358,16 +356,23 @@ def get_analytics_dashboard(
 
     # 6. Recent Alerts (Real events from DB)
     recent_db_events = db.query(SecurityEvent).order_by(SecurityEvent.id.desc()).limit(10).all()
+    camera_map = {c.id: (c.location or c.name) for c in registered_cameras}
     recent_alerts = []
     for evt in recent_db_events:
-        cam_loc = default_cams_meta.get(evt.camera_id, {}).get("location", f"Station {evt.camera_id}")
+        cam_loc = camera_map.get(evt.camera_id, f"Station {evt.camera_id}")
         # Extract confidence from details or derive from risk_score
         raw_conf = (evt.details or {}).get("confidence") if isinstance(evt.details, dict) else None
         if raw_conf is not None:
-            conf_pct = int(round(raw_conf * 100)) if raw_conf <= 1.0 else int(raw_conf)
+            try:
+                if isinstance(raw_conf, str):
+                    clean_conf = float(raw_conf.replace("%", "").strip())
+                else:
+                    clean_conf = float(raw_conf)
+                conf_pct = int(round(clean_conf * 100)) if clean_conf <= 1.0 else int(clean_conf)
+            except (ValueError, TypeError):
+                conf_pct = min(98, max(75, int(evt.risk_score or 85)))
         else:
             conf_pct = min(98, max(75, int(evt.risk_score or 85)))
-
 
         recent_alerts.append({
             "id": evt.id,
@@ -376,7 +381,7 @@ def get_analytics_dashboard(
             "event_type": evt.event_type,
             "confidence": conf_pct,
             "location": cam_loc,
-            "snapshot": evt.snapshot_path or "/assets/snapshot-person.jpg",
+            "snapshot": evt.snapshot_path,
             "severity": evt.severity
         })
 

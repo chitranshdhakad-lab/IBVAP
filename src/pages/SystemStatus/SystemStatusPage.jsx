@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import { useTranslation } from '../../services/i18n.js';
 
-export default function SystemStatusPage() {
+export default function SystemStatusPage({ cameras = [] }) {
   const { t } = useTranslation();
   
   // Dashboard Telemetry State
@@ -403,6 +403,7 @@ export default function SystemStatusPage() {
     });
 
     // Build smooth curve SVG path
+    if (coords.length === 0) return null;
     let pathD = `M ${coords[0].x} ${coords[0].y}`;
     for (let i = 1; i < coords.length; i++) {
       const prev = coords[i - 1];
@@ -411,7 +412,7 @@ export default function SystemStatusPage() {
       pathD += ` C ${midX} ${prev.y}, ${midX} ${cur.y}, ${cur.x} ${cur.y}`;
     }
 
-    const areaD = `${pathD} L ${coords[coords.length - 1].x} ${paddingTop + chartH} L ${coords[0].x} ${paddingTop + chartH} Z`;
+    const areaD = coords.length > 0 ? `${pathD} L ${coords[coords.length - 1].x} ${paddingTop + chartH} L ${coords[0].x} ${paddingTop + chartH} Z` : '';
 
     return (
       <svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} className="sys-sparkline-svg" preserveAspectRatio="none">
@@ -830,7 +831,7 @@ export default function SystemStatusPage() {
           <div className="sys-network-content">
             <div className="sys-cam-latency-title">Latency to Cameras</div>
             <div className="sys-cam-latency-list">
-              {network.cameras.map((c, i) => (
+              {(network?.cameras || []).map((c, i) => (
                 <div key={i} className="sys-cam-latency-item">
                   <div className="sys-cam-name-wrap">
                     <span className="sys-status-dot green"></span>

@@ -17,13 +17,8 @@ router = APIRouter(tags=["WebSocket"])
 async def websocket_live_stream(websocket: WebSocket, camera_id: str):
     await manager.connect(websocket, camera_id)
 
-    # Initial video mapping
-    video_map = {
-        "CAM-01": "Border_Test_03.mp4",
-        "CAM-02": "video_01_normal_patrol.mp4",
-        "CAM-03": "video_03_vehicle_incursion.mp4"
-    }
-    selected_video = surveillance_service.get_selected_video(camera_id) or video_map.get(camera_id, "Border_Test_03.mp4")
+    # Dynamically resolve real video for camera
+    selected_video = surveillance_service.get_selected_video(camera_id)
 
     # Send immediate state on connect
     is_active = surveillance_service.is_running(camera_id)
@@ -43,7 +38,7 @@ async def websocket_live_stream(websocket: WebSocket, camera_id: str):
             "active_tracks": 0
         },
         "threat_assessment": {
-            "score": 10,
+            "score": 0,
             "level": "SECURE",
             "description": "Sector monitoring active. Ready for analysis.",
             "key_factors": ["Optical feed calibrated", "Sector perimeter secure"]
@@ -89,11 +84,14 @@ async def websocket_live_stream(websocket: WebSocket, camera_id: str):
                 elif action == "start_analysis":
                     if cmd.get("video"):
                         selected_video = cmd.get("video")
+                    stride = cmd.get("frame_stride")
+                    speed = cmd.get("speed_mode", "fast")
                     surveillance_service.start_session(
                         camera_id=camera_id,
                         video_filename=selected_video,
                         loop=False,
-                        frame_stride=2
+                        frame_stride=stride,
+                        speed_mode=speed
                     )
 
                 elif action == "stop_analysis":
@@ -128,7 +126,13 @@ async def websocket_live_stream(websocket: WebSocket, camera_id: str):
                     },
                     "threat_assessment": {
                         "score": job_manager.current_threat_score if current_job_status == "COMPLETED" else 0,
-                        "level": "SECURE" if current_job_status != "COMPLETED" else ("HIGH RISK" if job_manager.current_threat_score >= 70 else "MEDIUM RISK"),
+                        "level": "SECURE" if current_job_status != "COMPLETED" or job_manager.current_threat_score == 0 else (
+                            "CRITICAL" if job_manager.current_threat_score >= 75 else (
+                                "HIGH RISK" if job_manager.current_threat_score >= 50 else (
+                                    "MEDIUM RISK" if job_manager.current_threat_score >= 25 else "LOW RISK"
+                                )
+                            )
+                        ),
                         "description": "Analysis complete. Results retained." if current_job_status == "COMPLETED" else "Sector monitoring active. Ready for analysis.",
                         "key_factors": ["Operational summary recorded"] if current_job_status == "COMPLETED" else ["Optical feed calibrated", "Sector perimeter secure"]
                     },

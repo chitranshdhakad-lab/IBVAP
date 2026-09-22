@@ -92,7 +92,7 @@ class SystemSettingsOut(BaseModel):
     system_name: str = "IBVAP - Border Surveillance System"
     time_zone: str = "Asia/Kolkata"
     language: str = "en"
-    theme: str = "dark"
+    theme: str = "light"
 
 class SystemSettingsUpdate(BaseModel):
     yolo_confidence_threshold: Optional[float] = None
@@ -212,8 +212,9 @@ class ThreatAssessmentOut(BaseModel):
     description: str
     key_factors: List[str]
 
-    class IntelligenceStatsOut(BaseModel):
-        persons: int
-        vehicles: int
-        animals: int
-        active_tracks: int
+class IntelligenceStatsOut(BaseModel):
+    persons: int
+    vehicles: int
+    animals: int
+    active_tracks: int
+

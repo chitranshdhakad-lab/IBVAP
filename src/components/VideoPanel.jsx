@@ -50,6 +50,7 @@ export default function VideoPanel({
   const [streamError, setStreamError] = useState(null);
   const [isStarting, setIsStarting] = useState(false);
   const [panelSettings, setPanelSettings] = useState(getStoredSettings);
+  const isAnalyzing = Boolean(analysisActive || jobStatus === 'RUNNING');
 
   useEffect(() => {
     const unsub = subscribeSettings((updated) => {
@@ -79,7 +80,7 @@ export default function VideoPanel({
 
   const videoSrc = currentVideoObj
     ? `/videos/${currentVideoObj.filename}`
-    : `/videos/${selectedVideo || 'Border_Test_03.mp4'}`;
+    : (selectedVideo ? `/videos/${selectedVideo}` : '');
 
   // Reset errors when video or camera switches
   useEffect(() => {
@@ -101,10 +102,10 @@ export default function VideoPanel({
 
   // Turn off starting spinner once analysis is confirmed active
   useEffect(() => {
-    if (analysisActive) {
+    if (isAnalyzing) {
       setIsStarting(false);
     }
-  }, [analysisActive]);
+  }, [isAnalyzing]);
 
   const handleVideoError = () => {
     const err = videoRef.current?.error;
@@ -131,15 +132,15 @@ export default function VideoPanel({
 
   // Sync video play/pause
   const togglePlay = () => {
-    if (analysisMode === 'analysis' || analysisActive) {
-      if (isPlaying || analysisActive) {
+    if (analysisMode === 'analysis' || isAnalyzing) {
+      if (isPlaying || isAnalyzing) {
         setIsPlaying(false);
         if (sendCommand) {
           sendCommand({ action: 'pause' });
         }
       } else {
         setIsPlaying(true);
-        if (onToggleAnalysis && !analysisActive) {
+        if (onToggleAnalysis && !isAnalyzing) {
           onToggleAnalysis();
         } else if (sendCommand) {
           sendCommand({ action: 'resume' });
@@ -161,24 +162,18 @@ export default function VideoPanel({
   };
 
   const handleAnalysisToggleClick = () => {
-    if (!analysisActive) {
+    if (!isAnalyzing) {
       // Starting analysis: show starting status and trigger pipeline
       setIsStarting(true);
-      if (videoRef.current) {
-        videoRef.current.currentTime = 0;
-        videoRef.current.play().then(() => {
-          setIsPlaying(true);
-        }).catch((e) => {
-          console.warn('Video autoplay on analysis start:', e);
-        });
-      }
       // Safety timeout: reset starting flag after 3s if no backend packet
       setTimeout(() => setIsStarting(false), 3000);
     } else {
-      // Stopping analysis: pause video
+      // Stopping analysis: cleanly pause video element if present
       setIsStarting(false);
       if (videoRef.current) {
-        videoRef.current.pause();
+        try {
+          videoRef.current.pause();
+        } catch (e) {}
         setIsPlaying(false);
       }
     }
@@ -331,16 +326,16 @@ export default function VideoPanel({
     return `${m}:${s}`;
   };
 
-  const displayTime = (analysisActive || jobStatus === 'RUNNING') && videoTimestamp ? videoTimestamp : currentTime;
+  const displayTime = isAnalyzing && videoTimestamp ? videoTimestamp : currentTime;
   const progressPercent = jobStatus === 'COMPLETED'
     ? 100
-    : ((analysisActive || jobStatus === 'RUNNING') && totalFrames > 0
+    : (isAnalyzing && totalFrames > 0
       ? Math.min(100, Math.max(0, (frameIndex / totalFrames) * 100))
       : (duration > 0 ? Math.min(100, Math.max(0, (displayTime / duration) * 100)) : 0));
 
   // Render dynamic status pill for HUD
   const renderJobStatusBadge = () => {
-    if (analysisActive || jobStatus === 'RUNNING') {
+    if (isAnalyzing) {
       return (
         <div className="hud-analysis-pill" style={{ backgroundColor: 'rgba(22, 101, 52, 0.85)', border: '1px solid #16a34a' }}>
           <span className="hud-analysis-dot"></span>
@@ -433,7 +428,7 @@ export default function VideoPanel({
                   </option>
                 ))
               ) : (
-                <option value="Border_Test_03.mp4">Border_Test_03.mp4</option>
+                <option value="">No Video Loaded</option>
               )}
             </select>
             <ChevronDown className="control-select-arrow" size={12} />
@@ -470,18 +465,18 @@ export default function VideoPanel({
 
           {/* Start / Stop Analysis Control Button */}
           <button
-            className={`btn-upload btn-analysis-toggle ${analysisActive ? 'active-stop' : ''}`}
+            className={`btn-upload btn-analysis-toggle ${isAnalyzing ? 'active-stop' : ''}`}
             onClick={handleAnalysisToggleClick}
             disabled={isStarting}
             style={{
-              backgroundColor: analysisActive ? '#7f1d1d' : isStarting ? '#b45309' : '#1e261f',
-              border: analysisActive ? '1px solid #ef4444' : isStarting ? '1px solid #f59e0b' : 'none',
+              backgroundColor: isAnalyzing ? '#7f1d1d' : isStarting ? '#b45309' : '#1e261f',
+              border: isAnalyzing ? '1px solid #ef4444' : isStarting ? '1px solid #f59e0b' : 'none',
               opacity: isStarting ? 0.85 : 1
             }}
-            title={analysisActive ? 'Halt YOLOv8 Detection Pipeline' : 'Initiate YOLOv8 + Tracker Pipeline'}
+            title={isAnalyzing ? 'Halt YOLOv8 Detection Pipeline' : 'Initiate YOLOv8 + Tracker Pipeline'}
           >
-            {analysisActive ? <Square size={11} /> : <Activity size={11} />}
-            <span>{isStarting ? t('starting') : analysisActive ? t('stopAnalysis') : (jobStatus === 'COMPLETED' ? t('rerunAnalysis') : t('startAnalysis'))}</span>
+            {isAnalyzing ? <Square size={11} /> : <Activity size={11} />}
+            <span>{isStarting ? t('starting') : isAnalyzing ? t('stopAnalysis') : (jobStatus === 'COMPLETED' ? t('rerunAnalysis') : t('startAnalysis'))}</span>
           </button>
 
           {/* Upload Feedback Message */}
@@ -518,23 +513,102 @@ export default function VideoPanel({
       {/* Video Panel Card */}
       <div className="video-panel-card">
         <div className="video-screen-container">
-          {videoError ? (
-            <div className="video-unavailable-overlay">
-              <AlertCircle size={36} color="#ef4444" />
-              <div className="video-unavailable-title">{t('videoUnavailable')}</div>
-              <div className="video-unavailable-filename">{selectedVideo}</div>
-              <div className="video-unavailable-reason">{videoError}</div>
-              <button
-                className="btn-retry-video"
-                onClick={() => {
-                  setVideoError(null);
-                  if (videoRef.current) videoRef.current.load();
-                }}
-              >
-                {t('retryLoading')}
-              </button>
+          {!videoSrc || !selectedVideo ? (
+            <div className="video-standby-c4isr-screen">
+              <img
+                src="/assets/border-cctv-standby.jpg"
+                alt="Optical Surveillance Standby Feed"
+                className="video-standby-bg"
+              />
+              <div className="video-standby-hud-overlay">
+                {/* Tactical Top Bar */}
+                <div className="standby-top-telemetry">
+                  <div className="telemetry-pill">
+                    <span className="standby-live-dot" />
+                    <span>C4ISR OPTICAL FEED // SENSOR STANDBY</span>
+                  </div>
+                  <div className="telemetry-coords">
+                    <span>{selectedCamera || 'CAM-01'}</span>
+                    <span>•</span>
+                    <span>32.114° N, 74.891° E</span>
+                    <span>•</span>
+                    <span>1080P / 30 FPS</span>
+                  </div>
+                </div>
+
+                {/* Central Targeting Crosshairs Reticle */}
+                <div className="standby-crosshairs-center">
+                  <div className="crosshair-reticle">
+                    <div className="reticle-center-circle" />
+                    <div className="reticle-line h" />
+                    <div className="reticle-line v" />
+                  </div>
+                  <div className="standby-center-info">
+                    <div className="standby-badge">OPTICAL CHANNEL READY</div>
+                    <div className="standby-main-text">Awaiting Surveillance Footage or Live Link</div>
+                    <p className="standby-sub-text">
+                      Upload an MP4 recording or select a camera channel to execute neural AI detection.
+                    </p>
+                    <button
+                      type="button"
+                      className="btn-standby-upload"
+                      onClick={handleUploadClick}
+                    >
+                      <Upload size={14} />
+                      <span>+ Ingest Footage / Upload Video</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Corner Brackets */}
+                <div className="standby-corner top-left" />
+                <div className="standby-corner top-right" />
+                <div className="standby-corner bottom-left" />
+                <div className="standby-corner bottom-right" />
+
+                {/* Bottom Status Bar */}
+                <div className="standby-bottom-status">
+                  <span>SECURE BORDER PATROL CORPS • STATION {selectedCamera || 'CAM-01'}</span>
+                  <span>ENCRYPTION: AES-256 GCM</span>
+                </div>
+              </div>
             </div>
-          ) : streamError && analysisMode === 'analysis' && (analysisActive || jobStatus === 'RUNNING') ? (
+          ) : videoError ? (
+            <div className="video-standby-c4isr-screen">
+              <img
+                src="/assets/border-cctv-standby.jpg"
+                alt="Optical Surveillance Standby Feed"
+                className="video-standby-bg error-tint"
+              />
+              <div className="video-standby-hud-overlay">
+                <div className="video-unavailable-overlay tactical-glass">
+                  <AlertCircle size={36} color="#ef4444" />
+                  <div className="video-unavailable-title">{t('videoUnavailable')}</div>
+                  <div className="video-unavailable-filename">{selectedVideo}</div>
+                  <div className="video-unavailable-reason">{videoError}</div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button
+                      className="btn-retry-video"
+                      onClick={() => {
+                        setVideoError(null);
+                        if (videoRef.current) videoRef.current.load();
+                      }}
+                    >
+                      {t('retryLoading')}
+                    </button>
+                    <button
+                      className="btn-retry-video upload-alt"
+                      onClick={handleUploadClick}
+                      style={{ background: '#0284c7', borderColor: '#0284c7', display: 'flex', alignItems: 'center', gap: '5px' }}
+                    >
+                      <Upload size={12} />
+                      Upload New Video
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : streamError && analysisMode === 'analysis' && isAnalyzing ? (
             <div className="video-unavailable-overlay">
               <AlertCircle size={36} color="#ef4444" />
               <div className="video-unavailable-title">{t('streamUnavailable')}</div>
@@ -547,14 +621,16 @@ export default function VideoPanel({
                 {t('reconnectStream')}
               </button>
             </div>
-          ) : analysisMode === 'analysis' && (analysisActive || jobStatus === 'RUNNING') ? (
+          ) : analysisMode === 'analysis' && isAnalyzing ? (
             <img
-              key={`stream-${selectedCamera}-${selectedVideo}`}
+              key={`stream-${selectedCamera}`}
               src={`/api/analysis/stream/${selectedCamera}?video=${encodeURIComponent(selectedVideo || '')}`}
               alt="Live Tactical CV Analysis Feed"
               className="video-media-layer"
               style={{ filter: panelSettings.nightModeEnhancement ? 'contrast(1.3) brightness(1.15) hue-rotate(65deg) saturate(0.85)' : 'none' }}
-              onError={() => setStreamError('Unable to connect to live MJPEG analysis stream from backend.')}
+              onError={() => {
+                console.warn('Analysis stream connection warning');
+              }}
             />
           ) : (
             <div style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}>

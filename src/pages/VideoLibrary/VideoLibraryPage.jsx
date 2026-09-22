@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   Film, Play, Square, AlertTriangle, CheckCircle, Clock,
-  Upload, Trash2, RotateCw, FileText, ExternalLink, HardDrive, Info
+  Upload, Trash2, RotateCw, FileText, ExternalLink, HardDrive, Info,
+  Activity, Cpu, Sparkles, FolderUp, CheckCircle2
 } from 'lucide-react';
 import { useTranslation } from '../../services/i18n.js';
 
@@ -23,6 +24,7 @@ export default function VideoLibraryPage({
   const [uploadError, setUploadError] = useState(null);
   const [historyJobs, setHistoryJobs] = useState([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const dropzoneInputRef = useRef(null);
 
   // Fetch processing history from backend
   const loadHistory = async () => {
@@ -31,7 +33,6 @@ export default function VideoLibraryPage({
       const res = await fetch('/api/videos');
       if (res.ok) {
         const data = await res.json();
-        // Construct history items from video records
         setHistoryJobs(data);
       }
     } catch (err) {
@@ -46,7 +47,7 @@ export default function VideoLibraryPage({
   }, []);
 
   const handleFileUpload = async (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
     setUploadError(null);
@@ -61,7 +62,7 @@ export default function VideoLibraryPage({
         body: formData
       });
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         throw new Error(err.detail || 'Upload failed');
       }
       const newVid = await res.json();
@@ -71,6 +72,7 @@ export default function VideoLibraryPage({
       setUploadError(err.message);
     } finally {
       setIsUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 
@@ -79,7 +81,7 @@ export default function VideoLibraryPage({
       return;
     }
     try {
-      const res = await fetch(`/api/videos/${video.id || video.filename}`, {
+      const res = await fetch(`/api/videos/${encodeURIComponent(video.id || video.filename)}`, {
         method: 'DELETE'
       });
       if (res.ok) {
@@ -88,7 +90,7 @@ export default function VideoLibraryPage({
         }
         loadHistory();
       } else {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
         alert(`Failed to delete video: ${err.detail || 'Server error'}`);
       }
     } catch (err) {
@@ -126,8 +128,83 @@ export default function VideoLibraryPage({
         </div>
       </div>
 
+      {/* Colorful Telemetry KPI Header Row */}
+      <div className="video-kpi-grid">
+        <div className="video-kpi-card kpi-purple">
+          <div className="video-kpi-icon-wrap">
+            <Film size={22} />
+          </div>
+          <div className="video-kpi-info">
+            <span className="video-kpi-val">{videos.length}</span>
+            <span className="video-kpi-lbl">Vault Recordings</span>
+            <span className="video-kpi-sub">Surveillance Archives Ingested</span>
+          </div>
+        </div>
+
+        <div className="video-kpi-card kpi-emerald">
+          <div className="video-kpi-icon-wrap">
+            <CheckCircle2 size={22} />
+          </div>
+          <div className="video-kpi-info">
+            <span className="video-kpi-val">{completedVideos.length}</span>
+            <span className="video-kpi-lbl">Completed Audits</span>
+            <span className="video-kpi-sub">End-of-File Verified</span>
+          </div>
+        </div>
+
+        <div className="video-kpi-card kpi-cyan">
+          <div className="video-kpi-icon-wrap">
+            <Activity size={22} />
+          </div>
+          <div className="video-kpi-info">
+            <span className="video-kpi-val">{analysisActive ? '1 Stream' : '0 Idle'}</span>
+            <span className="video-kpi-lbl">Inference Pipeline</span>
+            <span className="video-kpi-sub">{analysisActive ? 'Real-time YOLOv8 active' : 'Awaiting job queue'}</span>
+          </div>
+        </div>
+
+        <div className="video-kpi-card kpi-amber">
+          <div className="video-kpi-icon-wrap">
+            <Cpu size={22} />
+          </div>
+          <div className="video-kpi-info">
+            <span className="video-kpi-val">ByteTrack</span>
+            <span className="video-kpi-lbl">Tracker Engine</span>
+            <span className="video-kpi-sub">Multi-Object IoU Tracker</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Interactive Dropzone Ingest Card */}
+      <label className="video-upload-dropzone">
+        <div className="video-dropzone-icon-glow">
+          <Upload size={24} />
+        </div>
+        <div className="video-dropzone-title">
+          {isUploading ? 'Ingesting Video Asset...' : 'Click or Drag Surveillance Video Here to Upload'}
+        </div>
+        <p className="video-dropzone-desc">
+          Ingest border camera recordings directly into the vault for automated YOLOv8 neural analysis and intrusion tracking.
+        </p>
+        <div className="video-format-tags">
+          <span className="video-format-pill">MP4</span>
+          <span className="video-format-pill">AVI</span>
+          <span className="video-format-pill">MOV</span>
+          <span className="video-format-pill">MKV</span>
+          <span className="video-format-pill">Up to 4K H.264/H.265</span>
+        </div>
+        <input
+          ref={dropzoneInputRef}
+          type="file"
+          accept="video/mp4,video/avi,video/mov,video/mkv"
+          onChange={handleFileUpload}
+          disabled={isUploading}
+          style={{ display: 'none' }}
+        />
+      </label>
+
       {uploadError && (
-        <div className="alert-banner error" style={{ margin: '0 0 16px 0', padding: '10px 14px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '4px', color: '#fca5a5', fontSize: '12px' }}>
+        <div className="alert-banner error" style={{ margin: '0 0 16px 0', padding: '10px 14px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', borderRadius: '6px', color: '#fca5a5', fontSize: '12px' }}>
           <b>Upload Error:</b> {uploadError}
         </div>
       )}
@@ -177,65 +254,74 @@ export default function VideoLibraryPage({
       {subTab === 'uploaded' && (
         <div className="library-card-grid">
           {videos.length === 0 ? (
-            <div className="empty-state-card">
-              <Film size={32} color="#64748b" />
-              <h3>NO UPLOADED VIDEOS FOUND</h3>
-              <p>Upload an MP4 surveillance recording to begin tactical computer vision analysis.</p>
+            <div className="video-empty-stylish" style={{ gridColumn: '1 / -1' }}>
+              <div className="video-empty-disc">
+                <Film size={34} />
+              </div>
+              <h3 className="video-empty-title">Surveillance Video Vault is Ready</h3>
+              <p className="video-empty-desc">
+                No videos currently loaded. Upload an MP4, AVI, or MOV surveillance recording above to begin tactical computer vision analysis and intrusion tracking.
+              </p>
+              <button
+                type="button"
+                className="btn-standby-upload"
+                onClick={() => dropzoneInputRef.current?.click()}
+              >
+                <Upload size={14} />
+                <span>+ Upload First Video</span>
+              </button>
             </div>
           ) : (
             videos.map((vid) => (
-              <div key={vid.id || vid.filename} className="video-card">
-                <div className="video-card-header">
+              <div key={vid.id || vid.filename} className="video-card-stylish">
+                <div className={`video-card-accent-bar accent-${(vid.processing_status || 'idle').toLowerCase()}`} />
+                <div className="video-card-body-content">
                   <div className="video-card-title-row">
                     <span className="video-card-filename" title={vid.filename}>{vid.filename}</span>
-                    <span className={`badge-status ${vid.processing_status?.toLowerCase()}`}>
+                    <span className={`badge-status ${(vid.processing_status || 'idle').toLowerCase()}`}>
                       {vid.processing_status || 'IDLE'}
                     </span>
                   </div>
-                  <div className="video-card-meta">
-                    <span>Camera: <b>{vid.camera_id || 'CAM-01'}</b></span>
-                    <span>•</span>
-                    <span>Duration: <b>{vid.duration}s</b></span>
-                    <span>•</span>
-                    <span>Resolution: <b>{vid.resolution}</b></span>
-                    <span>•</span>
-                    <span>FPS: <b>{vid.fps}</b></span>
-                    <span>•</span>
-                    <span>Size: <b>{vid.file_size}</b></span>
+
+                  <div className="video-badge-group">
+                    <span className="meta-chip chip-cam">📹 {vid.camera_id || 'CAM-01'}</span>
+                    <span className="meta-chip chip-duration">⏱ {vid.duration}s</span>
+                    <span className="meta-chip chip-res">🖥 {vid.resolution || '1080P'}</span>
+                    <span className="meta-chip chip-size">💾 {vid.file_size || 'Video'}</span>
                   </div>
-                </div>
 
-                <div className="video-card-actions">
-                  <button
-                    className="btn-card-action primary"
-                    onClick={() => {
-                      onSelectVideo(vid.filename);
-                      onNavigateToTab('live-monitor');
-                    }}
-                    title="Load into Live Monitor player"
-                  >
-                    <Play size={12} /> Play in Monitor
-                  </button>
+                  <div className="video-card-actions">
+                    <button
+                      className="btn-stylish-play"
+                      onClick={() => {
+                        onSelectVideo(vid.filename);
+                        onNavigateToTab('live-monitor');
+                      }}
+                      title="Load into Live Monitor player"
+                    >
+                      <Play size={12} fill="currentColor" /> Play in Monitor
+                    </button>
 
-                  <button
-                    className="btn-card-action success"
-                    onClick={() => {
-                      onSelectVideo(vid.filename);
-                      if (onStartAnalysis) onStartAnalysis(vid.filename);
-                      onNavigateToTab('live-monitor');
-                    }}
-                    title="Execute YOLOv8 + ByteTrack pipeline on this video"
-                  >
-                    <RotateCw size={12} /> Analyze
-                  </button>
+                    <button
+                      className="btn-stylish-analyze"
+                      onClick={() => {
+                        onSelectVideo(vid.filename);
+                        if (onStartAnalysis) onStartAnalysis(vid.filename);
+                        onNavigateToTab('live-monitor');
+                      }}
+                      title="Execute YOLOv8 + ByteTrack pipeline on this video"
+                    >
+                      <RotateCw size={12} /> AI Analyze
+                    </button>
 
-                  <button
-                    className="btn-card-action danger"
-                    onClick={() => handleDeleteVideo(vid)}
-                    title="Delete video file and metadata"
-                  >
-                    <Trash2 size={12} /> Delete
-                  </button>
+                    <button
+                      className="btn-stylish-delete"
+                      onClick={() => handleDeleteVideo(vid)}
+                      title="Delete video file and metadata"
+                    >
+                      <Trash2 size={12} /> Delete
+                    </button>
+                  </div>
                 </div>
               </div>
             ))
@@ -333,15 +419,25 @@ export default function VideoLibraryPage({
                     </span>
                   </td>
                   <td>
-                    <button
-                      className="btn-table-action"
-                      onClick={() => {
-                        onSelectVideo(vid.filename);
-                        onNavigateToTab('live-monitor');
-                      }}
-                    >
-                      Inspect
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                      <button
+                        className="btn-table-action"
+                        onClick={() => {
+                          onSelectVideo(vid.filename);
+                          onNavigateToTab('live-monitor');
+                        }}
+                      >
+                        Inspect
+                      </button>
+                      <button
+                        className="btn-table-action"
+                        style={{ color: '#f87171', borderColor: 'rgba(239, 68, 68, 0.4)' }}
+                        onClick={() => handleDeleteVideo(vid)}
+                        title="Delete video record and file"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}

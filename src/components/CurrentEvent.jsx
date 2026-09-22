@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Check, ShieldCheck } from 'lucide-react';
+import { Check, ShieldCheck, Camera } from 'lucide-react';
 import { useTranslation } from '../services/i18n.js';
 
 export default function CurrentEvent({
@@ -65,7 +65,7 @@ export default function CurrentEvent({
     );
   }
 
-  const imageSrc = activeEvt.snapshot_path || '/assets/current-event-person.jpg';
+  const imageSrc = activeEvt.snapshot_path;
 
   return (
     <div className="bottom-card">
@@ -87,15 +87,37 @@ export default function CurrentEvent({
           title="Click to inspect full tactical evidence snapshot"
           style={{ cursor: 'pointer', position: 'relative' }}
         >
-          <img
-            src={imageSrc}
-            alt="Detected Incident Snapshot"
-            className="current-event-img"
-            onError={(e) => {
-              e.target.onerror = null;
-              e.target.src = '/assets/current-event-person.jpg';
+          {imageSrc ? (
+            <img
+              src={imageSrc}
+              alt="Detected Incident Snapshot"
+              className="current-event-img"
+              onError={(e) => {
+                e.target.style.display = 'none';
+                const p = e.target.parentElement;
+                if (p) {
+                  const errBox = p.querySelector('.current-event-no-img');
+                  if (errBox) errBox.style.display = 'flex';
+                }
+              }}
+            />
+          ) : null}
+          <div
+            className="current-event-no-img"
+            style={{
+              display: imageSrc ? 'none' : 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '100%',
+              height: '100%',
+              background: 'rgba(15,23,42,0.8)',
+              color: 'var(--text-secondary)'
             }}
-          />
+          >
+            <Camera size={24} style={{ opacity: 0.5, marginBottom: '4px' }} />
+            <span style={{ fontSize: '9.5px', fontWeight: 600 }}>OPTICAL FEED</span>
+          </div>
           <div className="event-img-inspect-badge">INSPECT</div>
         </div>
 

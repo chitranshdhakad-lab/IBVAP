@@ -56,3 +56,10 @@ backend/storage/backups/
 # Local test screenshots in root
 *.png
 !public/**/*.png
+
+# Runtime evidence captures and test video uploads
+public/evidence/
+backend/storage/evidence/
+public/videos/
+*.db-wal
+*.db-shm

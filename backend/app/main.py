@@ -25,42 +25,52 @@ logger = logging.getLogger("surveillance.main")
 def seed_defaults():
     db = SessionLocal()
     try:
-        if db.query(Camera).count() == 0:
-            cams = [
-                Camera(
-                    id="CAM-01",
-                    name="CAM-01 - North Perimeter",
-                    location="Post 44A - Western Sector",
-                    sector="Sector Alpha",
-                    status="ACTIVE",
-                    restricted_zone=[[0.0, 0.20], [0.55, 0.38], [0.50, 0.52], [0.0, 0.38]],
-                    border_line=[[0.0, 0.42], [0.95, 0.42]]
-                ),
-                Camera(
-                    id="CAM-02",
-                    name="CAM-02 - River Crossing",
-                    location="River Basin Transit Point",
-                    sector="Sector Bravo",
-                    status="ACTIVE"
-                ),
-                Camera(
-                    id="CAM-03",
-                    name="CAM-03 - Ridge Line",
-                    location="Forward Ridge Observation Post",
-                    sector="Sector Charlie",
-                    status="ACTIVE"
-                ),
-                Camera(
-                    id="CAM-04",
-                    name="CAM-04 - South Gate",
-                    location="Delta Pass Checkpoint",
-                    sector="Sector Delta",
-                    status="IDLE"
-                )
-            ]
-            db.add_all(cams)
-            db.commit()
-            logger.info("Seeded initial cameras.")
+        from app.models import AnalysisJob
+        from app.routers.videos import get_video_metadata
+
+        # Reset stale running jobs/videos left from any prior interrupted process
+        db.query(AnalysisJob).filter(AnalysisJob.status.in_(["RUNNING", "PROCESSING"])).update({"status": "STOPPED"})
+        db.query(Video).filter(Video.processing_status.in_(["RUNNING", "PROCESSING"])).update({"processing_status": "IDLE"})
+        db.commit()
+
+        core_cams = [
+            Camera(
+                id="CAM-01",
+                name="CAM-01 - North Perimeter",
+                location="Post 44A - Western Sector",
+                sector="Sector Alpha",
+                status="ACTIVE",
+                restricted_zone=[[0.0, 0.20], [0.55, 0.38], [0.50, 0.52], [0.0, 0.38]],
+                border_line=[[0.0, 0.42], [0.95, 0.42]]
+            ),
+            Camera(
+                id="CAM-02",
+                name="CAM-02 - River Crossing",
+                location="River Basin Transit Point",
+                sector="Sector Bravo",
+                status="ACTIVE"
+            ),
+            Camera(
+                id="CAM-03",
+                name="CAM-03 - Ridge Line",
+                location="Forward Ridge Observation Post",
+                sector="Sector Charlie",
+                status="ACTIVE"
+            ),
+            Camera(
+                id="CAM-04",
+                name="CAM-04 - South Gate",
+                location="Delta Pass Checkpoint",
+                sector="Sector Delta",
+                status="IDLE"
+            )
+        ]
+        for c in core_cams:
+            existing_cam = db.query(Camera).filter(Camera.id == c.id).first()
+            if not existing_cam:
+                db.add(c)
+        db.commit()
+        logger.info("Ensured core camera stations (CAM-01 to CAM-04).")
 
         # Seed initial restricted zone for CAM-01 if empty
         if db.query(RestrictedZone).count() == 0:
@@ -108,20 +118,29 @@ def seed_defaults():
             db.commit()
             logger.info("Seeded default alert rules.")
 
-        # Sync disk videos into DB
+        # Sync disk videos into DB with actual container metadata
         for fn in os.listdir(VIDEOS_DIR):
-            if fn.endswith('.mp4'):
+            if fn.endswith(('.mp4', '.avi', '.mov', '.mkv')):
+                v_path = str(VIDEOS_DIR / fn)
+                dur, res, fps, frames = get_video_metadata(v_path)
                 existing = db.query(Video).filter(Video.filename == fn).first()
                 if not existing:
                     db.add(Video(
                         filename=fn,
-                        filepath=str(VIDEOS_DIR / fn),
-                        duration=180.0,
-                        resolution="1920x1080",
-                        fps=25.0,
+                        filepath=v_path,
+                        duration=dur,
+                        resolution=res,
+                        fps=fps,
+                        total_frames=frames,
                         camera_id="CAM-01",
                         processing_status="IDLE"
                     ))
+                elif existing.total_frames <= 0 or existing.duration <= 0.0:
+                    existing.duration = dur
+                    existing.resolution = res
+                    existing.fps = fps
+                    existing.total_frames = frames
+                    existing.filepath = v_path
         db.commit()
 
         # Seed default operators if table is empty

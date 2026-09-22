@@ -642,12 +642,16 @@ export default function AnalyticsPage({ onExportReport, onNavigateToTab }) {
                       <td className="text-slate-300">{evt.location}</td>
                       <td>
                         <div className="snapshot-thumb-wrap">
-                          <img
-                            src={evt.snapshot}
-                            alt="Snapshot"
-                            className="snapshot-mini-thumb"
-                            onError={(e) => { e.target.src = '/assets/snapshot-person.jpg'; }}
-                          />
+                          {evt.snapshot ? (
+                            <img
+                              src={evt.snapshot}
+                              alt="Snapshot"
+                              className="snapshot-mini-thumb"
+                              onError={(e) => { e.target.style.display = 'none'; }}
+                            />
+                          ) : (
+                            <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>—</span>
+                          )}
                         </div>
                       </td>
                     </tr>

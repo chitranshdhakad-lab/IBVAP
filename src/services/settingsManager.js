@@ -11,7 +11,7 @@ export const DEFAULT_SETTINGS = {
   systemName: 'IBVAP - Border Surveillance System',
   timeZone: 'Asia/Kolkata', // (GMT+05:30) India Standard Time
   language: 'en',
-  theme: 'dark', // 'dark', 'light', 'night-ops', 'high-contrast'
+  theme: 'light', // 'dark', 'light', 'night-ops', 'high-contrast'
 
   // 2. Alert Settings
   intrusionAlerts: true,
@@ -132,7 +132,7 @@ export const toBackendPayload = (s) => ({
   system_name: s.systemName || 'IBVAP - Border Surveillance System',
   time_zone: s.timeZone || 'Asia/Kolkata',
   language: s.language || 'en',
-  theme: s.theme || 'dark'
+  theme: s.theme || 'light'
 });
 
 // Convert backend snake_case settings to frontend camelCase updates
@@ -271,7 +271,7 @@ export const subscribeSettings = (callback) => {
 };
 
 export const applyThemeToDOM = (themeName) => {
-  const theme = themeName || 'dark';
+  const theme = themeName || 'light';
   let cssTheme = 'tactical-dark';
   let genericTheme = 'dark';
 

@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import {
   X, Download, ShieldAlert, CheckCircle, Clock, Video,
-  Compass, Gauge, Eye, ZoomIn, AlertTriangle, ArrowLeft
+  Compass, Gauge, Eye, ZoomIn, AlertTriangle, ArrowLeft, Camera
 } from 'lucide-react';
 
 import { useTranslation } from '../services/i18n.js';
@@ -31,7 +31,7 @@ export default function SnapshotModal({
     severity === 'high' ? t('levelHigh') :
     severity === 'medium' ? t('levelModerate') : t('levelLow');
 
-  const snapshotSrc = event.snapshot_path || event.snapshotUrl || '/evidence/sample_evidence.jpg';
+  const snapshotSrc = event.snapshot_path || event.snapshotUrl;
   const cropSrc = event.crop_path || event.details?.crop_path;
 
   const handleDownload = () => {
@@ -97,15 +97,34 @@ export default function SnapshotModal({
           {/* Main Evidence Visual Preview */}
           <div className="snapshot-modal-visual-stage">
             <div className="snapshot-image-container">
-              <img
-                src={snapshotSrc}
-                alt={`Evidence Snapshot #${event.id}`}
-                className="snapshot-main-img"
-                onError={(e) => {
-                  e.target.onerror = null;
-                  e.target.src = '/assets/snapshot-person.jpg';
-                }}
-              />
+              {snapshotSrc ? (
+                <>
+                  <img
+                    src={snapshotSrc}
+                    alt={`Evidence Snapshot #${event.id}`}
+                    className="snapshot-main-img"
+                    onError={(e) => {
+                      e.target.style.display = 'none';
+                      const p = e.target.parentElement;
+                      if (p) {
+                        const errEl = p.querySelector('.modal-snapshot-error');
+                        if (errEl) errEl.style.display = 'flex';
+                      }
+                    }}
+                  />
+                  <div className="modal-snapshot-error" style={{ display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '320px', color: 'var(--text-secondary)' }}>
+                    <Camera size={36} style={{ opacity: 0.4, marginBottom: '8px' }} />
+                    <span style={{ fontSize: '13px', fontWeight: 600 }}>EVIDENCE FILE UNAVAILABLE</span>
+                    <span style={{ fontSize: '11px', opacity: 0.7 }}>File not found on storage mount</span>
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '320px', color: 'var(--text-secondary)' }}>
+                  <Camera size={36} style={{ opacity: 0.4, marginBottom: '8px' }} />
+                  <span style={{ fontSize: '13px', fontWeight: 600 }}>NO EVIDENCE SNAPSHOT RECORDED</span>
+                  <span style={{ fontSize: '11px', opacity: 0.7 }}>This event did not generate an optical capture</span>
+                </div>
+              )}
               <div className="snapshot-hud-stamp">
                 <span>CLASSIFICATION: {event.object || event.object_class || 'Target'}</span>
                 <span>CONFIDENCE: {event.confidence || '94%'}</span>

@@ -4,192 +4,28 @@ import {
   CheckCircle2, AlertCircle, Eye, User, Car, PawPrint,
   Footprints, Users, Plane, Shield, MapPin, Play, Pause,
   Maximize2, ExternalLink, Check, ArrowRight, ArrowLeft,
-  ChevronLeft, ChevronRight, Filter, RefreshCw
+  ChevronLeft, ChevronRight, Filter, RefreshCw, Camera
 } from 'lucide-react';
 import { useTranslation } from '../../services/i18n.js';
 
-const INITIAL_EVENTS = [
-  {
-    id: 1,
-    time: "14:28:11",
-    event_type: "Unauthorized Person",
-    object_class: "person",
-    camera_id: "CAM-03",
-    location: "Near Fence A3",
-    sector: "Sector A",
-    confidence: 92,
-    severity: "High",
-    status: "Active",
-    snapshot_path: "/evidence/evidence_CAM-03_fence.jpg",
-    created_at: "20 Sep 2026 | 14:28:11"
-  },
-  {
-    id: 2,
-    time: "14:25:03",
-    event_type: "Vehicle Near Border",
-    object_class: "car",
-    camera_id: "CAM-01",
-    location: "Access Road",
-    sector: "Sector A",
-    confidence: 87,
-    severity: "Medium",
-    status: "Active",
-    snapshot_path: "/evidence/evidence_CAM-01_13_1.jpg",
-    created_at: "20 Sep 2026 | 14:25:03"
-  },
-  {
-    id: 3,
-    time: "14:21:44",
-    event_type: "Animal Movement",
-    object_class: "dog",
-    camera_id: "CAM-05",
-    location: "Valley Zone",
-    sector: "Sector C",
-    confidence: 78,
-    severity: "Medium",
-    status: "Active",
-    snapshot_path: "/evidence/crop_evidence_CAM-01_13_1.jpg",
-    created_at: "20 Sep 2026 | 14:21:44"
-  },
-  {
-    id: 4,
-    time: "14:18:30",
-    event_type: "Border Breach",
-    object_class: "person",
-    camera_id: "CAM-02",
-    location: "Sector B - Ridge",
-    sector: "Sector B",
-    confidence: 85,
-    severity: "High",
-    status: "Escalated",
-    snapshot_path: "/evidence/evidence_CAM-02_13_1.jpg",
-    created_at: "20 Sep 2026 | 14:18:30"
-  },
-  {
-    id: 5,
-    time: "14:12:17",
-    event_type: "Loitering Detected",
-    object_class: "person",
-    camera_id: "CAM-04",
-    location: "Hill Track",
-    sector: "Sector D",
-    confidence: 76,
-    severity: "Medium",
-    status: "Active",
-    snapshot_path: "/evidence/evidence_CAM-03_fence.jpg",
-    created_at: "20 Sep 2026 | 14:12:17"
-  },
-  {
-    id: 6,
-    time: "14:05:55",
-    event_type: "Multiple Persons",
-    object_class: "person",
-    camera_id: "CAM-03",
-    location: "Restricted Area",
-    sector: "Sector A",
-    confidence: 90,
-    severity: "High",
-    status: "Active",
-    snapshot_path: "/evidence/evidence_CAM-03_fence.jpg",
-    created_at: "20 Sep 2026 | 14:05:55"
-  },
-  {
-    id: 7,
-    time: "13:58:21",
-    event_type: "Vehicle (No Plate)",
-    object_class: "truck",
-    camera_id: "CAM-01",
-    location: "Border Road",
-    sector: "Sector B",
-    confidence: 68,
-    severity: "Medium",
-    status: "Resolved",
-    snapshot_path: "/evidence/evidence_CAM-01_13_1.jpg",
-    created_at: "20 Sep 2026 | 13:58:21"
-  },
-  {
-    id: 8,
-    time: "13:41:09",
-    event_type: "Animal Herd",
-    object_class: "cow",
-    camera_id: "CAM-06",
-    location: "River Side",
-    sector: "Sector E",
-    confidence: 72,
-    severity: "Low",
-    status: "Resolved",
-    snapshot_path: "/evidence/crop_evidence_CAM-02_13_1.jpg",
-    created_at: "20 Sep 2026 | 13:41:09"
-  },
-  {
-    id: 9,
-    time: "13:32:18",
-    event_type: "Person Near Border",
-    object_class: "person",
-    camera_id: "CAM-04",
-    location: "Sector C",
-    sector: "Sector C",
-    confidence: 80,
-    severity: "Medium",
-    status: "Resolved",
-    snapshot_path: "/evidence/evidence_CAM-03_fence.jpg",
-    created_at: "20 Sep 2026 | 13:32:18"
-  },
-  {
-    id: 10,
-    time: "13:20:05",
-    event_type: "Drone Detected",
-    object_class: "drone",
-    camera_id: "CAM-02",
-    location: "Air Zone",
-    sector: "Sector B",
-    confidence: 88,
-    severity: "High",
-    status: "Escalated",
-    snapshot_path: "/evidence/evidence_CAM-02_13_1.jpg",
-    created_at: "20 Sep 2026 | 13:20:05"
-  }
-];
-
-const INITIAL_DASHBOARD_DATA = {
+const EMPTY_DASHBOARD_DATA = {
   kpis: {
-    total_alerts: { value: 142, trend: '↑ 20% vs. previous week', color: '#ef4444' },
-    high_severity: { value: 21, trend: '↑ 40% vs. previous week', color: '#ef4444' },
-    medium_severity: { value: 67, trend: '↑ 12% vs. previous week', color: '#f59e0b' },
-    low_severity: { value: 54, trend: '↓ 18% vs. previous week', color: '#10b981' },
-    resolved: { value: 119, trend: '↑ 35% vs. previous week', color: '#10b981' }
+    total_alerts: { value: 0, trend: '0% vs. baseline', color: '#ef4444' },
+    high_severity: { value: 0, trend: '0% vs. baseline', color: '#ef4444' },
+    medium_severity: { value: 0, trend: '0% vs. baseline', color: '#f59e0b' },
+    low_severity: { value: 0, trend: '0% vs. baseline', color: '#10b981' },
+    resolved: { value: 0, trend: '0% vs. baseline', color: '#10b981' }
   },
-  trend: [
-    { date: '14 Sep', high: 15, medium: 8, low: 2 },
-    { date: '15 Sep', high: 23, medium: 10, low: 2 },
-    { date: '16 Sep', high: 19, medium: 12, low: 3 },
-    { date: '17 Sep', high: 25, medium: 16, low: 4 },
-    { date: '18 Sep', high: 24, medium: 16, low: 3 },
-    { date: '19 Sep', high: 20, medium: 13, low: 3 },
-    { date: '20 Sep', high: 31, medium: 16, low: 4 }
-  ],
-  alert_types: [
-    { name: 'Unauthorized Person', percentage: 38, color: '#2563eb' },
-    { name: 'Vehicle Movement', percentage: 22, color: '#10b981' },
-    { name: 'Animal Movement', percentage: 18, color: '#f59e0b' },
-    { name: 'Border Breach', percentage: 10, color: '#ea580c' },
-    { name: 'Loitering', percentage: 7, color: '#ef4444' },
-    { name: 'Others', percentage: 5, color: '#64748b' }
-  ],
-  alerts_by_sector: [
-    { sector: 'Sector A', count: 36, color: '#3b82f6' },
-    { sector: 'Sector B', count: 28, color: '#f59e0b' },
-    { sector: 'Sector C', count: 24, color: '#10b981' },
-    { sector: 'Sector D', count: 18, color: '#06b6d4' },
-    { sector: 'Sector E', count: 12, color: '#f97316' }
-  ],
-  events: INITIAL_EVENTS,
-  selected_event: INITIAL_EVENTS[0],
+  trend: [],
+  alert_types: [],
+  alerts_by_sector: [],
+  events: [],
+  selected_event: null,
   pagination: {
     current_page: 1,
     page_size: 10,
-    total_events: 142,
-    total_pages: 14
+    total_events: 0,
+    total_pages: 1
   }
 };
 
@@ -200,8 +36,8 @@ export default function EventsAlertsPage({
 }) {
   const { t } = useTranslation();
 
-  // Dashboard Data State initialized with full dataset for 0ms visual rendering
-  const [dashboardData, setDashboardData] = useState(INITIAL_DASHBOARD_DATA);
+  // Dashboard Data State initialized from API
+  const [dashboardData, setDashboardData] = useState(EMPTY_DASHBOARD_DATA);
   const [loading, setLoading] = useState(false);
 
   // Filters
@@ -214,7 +50,7 @@ export default function EventsAlertsPage({
   const [currentPage, setCurrentPage] = useState(1);
 
   // Selected event for the Event Details preview
-  const [selectedEvent, setSelectedEvent] = useState(INITIAL_EVENTS[0]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
   const [isPlaying, setIsPlaying] = useState(false);
 
   // Action status loading & toast
@@ -351,32 +187,38 @@ export default function EventsAlertsPage({
     resolved: { value: 119, trend: '↑ 35% vs. previous week', color: '#10b981' }
   };
 
-  const trendPoints = dashboardData?.trend || [
-    { date: '14 Sep', high: 15, medium: 8, low: 2 },
-    { date: '15 Sep', high: 23, medium: 10, low: 2 },
-    { date: '16 Sep', high: 19, medium: 12, low: 3 },
-    { date: '17 Sep', high: 25, medium: 16, low: 4 },
-    { date: '18 Sep', high: 24, medium: 16, low: 3 },
-    { date: '19 Sep', high: 20, medium: 13, low: 3 },
-    { date: '20 Sep', high: 31, medium: 16, low: 4 }
-  ];
+  const trendPoints = (dashboardData?.trend && dashboardData.trend.length > 0)
+    ? dashboardData.trend
+    : [
+        { date: '14 Sep', high: 15, medium: 8, low: 2 },
+        { date: '15 Sep', high: 23, medium: 10, low: 2 },
+        { date: '16 Sep', high: 19, medium: 12, low: 3 },
+        { date: '17 Sep', high: 25, medium: 16, low: 4 },
+        { date: '18 Sep', high: 24, medium: 16, low: 3 },
+        { date: '19 Sep', high: 20, medium: 13, low: 3 },
+        { date: '20 Sep', high: 31, medium: 16, low: 4 }
+      ];
 
-  const alertTypes = dashboardData?.alert_types || [
-    { name: 'Unauthorized Person', percentage: 38, color: '#2563eb' },
-    { name: 'Vehicle Movement', percentage: 22, color: '#10b981' },
-    { name: 'Animal Movement', percentage: 18, color: '#f59e0b' },
-    { name: 'Border Breach', percentage: 10, color: '#ea580c' },
-    { name: 'Loitering', percentage: 7, color: '#ef4444' },
-    { name: 'Others', percentage: 5, color: '#64748b' }
-  ];
+  const alertTypes = (dashboardData?.alert_types && dashboardData.alert_types.length > 0)
+    ? dashboardData.alert_types
+    : [
+        { name: 'Unauthorized Person', percentage: 38, color: '#2563eb' },
+        { name: 'Vehicle Movement', percentage: 22, color: '#10b981' },
+        { name: 'Animal Movement', percentage: 18, color: '#f59e0b' },
+        { name: 'Border Breach', percentage: 10, color: '#ea580c' },
+        { name: 'Loitering', percentage: 7, color: '#ef4444' },
+        { name: 'Others', percentage: 5, color: '#64748b' }
+      ];
 
-  const sectorBars = dashboardData?.alerts_by_sector || [
-    { sector: 'Sector A', count: 36, color: '#3b82f6' },
-    { sector: 'Sector B', count: 28, color: '#f59e0b' },
-    { sector: 'Sector C', count: 24, color: '#10b981' },
-    { sector: 'Sector D', count: 18, color: '#06b6d4' },
-    { sector: 'Sector E', count: 12, color: '#f97316' }
-  ];
+  const sectorBars = (dashboardData?.alerts_by_sector && dashboardData.alerts_by_sector.length > 0)
+    ? dashboardData.alerts_by_sector
+    : [
+        { sector: 'Sector A', count: 36, color: '#3b82f6' },
+        { sector: 'Sector B', count: 28, color: '#f59e0b' },
+        { sector: 'Sector C', count: 24, color: '#10b981' },
+        { sector: 'Sector D', count: 18, color: '#06b6d4' },
+        { sector: 'Sector E', count: 12, color: '#f97316' }
+      ];
 
   const eventsList = dashboardData?.events || [];
   const pagination = dashboardData?.pagination || {
@@ -420,6 +262,14 @@ export default function EventsAlertsPage({
     const chartH = height - padTop - padBottom;
     const maxVal = 40;
 
+    if (!trendPoints || trendPoints.length === 0) {
+      return (
+        <div style={{ height: 140, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sys-text-muted, #94a3b8)', fontSize: '13px' }}>
+          No trend activity recorded
+        </div>
+      );
+    }
+
     const stepX = chartW / (trendPoints.length - 1 || 1);
 
     const getCoords = (key) => {
@@ -435,6 +285,7 @@ export default function EventsAlertsPage({
     const lowCoords = getCoords('low');
 
     const makePath = (coords) => {
+      if (!coords || coords.length === 0) return '';
       let d = `M ${coords[0].x} ${coords[0].y}`;
       for (let i = 1; i < coords.length; i++) {
         const prev = coords[i - 1];
@@ -446,6 +297,7 @@ export default function EventsAlertsPage({
     };
 
     const makeArea = (pathD, coords) => {
+      if (!coords || coords.length === 0 || !pathD) return '';
       return `${pathD} L ${coords[coords.length - 1].x} ${padTop + chartH} L ${coords[0].x} ${padTop + chartH} Z`;
     };
 
@@ -510,6 +362,13 @@ export default function EventsAlertsPage({
 
   // Helper for SVG Donut Chart
   const renderDonutChart = () => {
+    if (!alertTypes || alertTypes.length === 0) {
+      return (
+        <div style={{ width: 120, height: 120, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sys-text-muted, #94a3b8)', fontSize: '11px', textAlign: 'center' }}>
+          No alerts
+        </div>
+      );
+    }
     let cumulative = 0;
     const radius = 38;
     const circ = 2 * Math.PI * radius;
@@ -548,6 +407,13 @@ export default function EventsAlertsPage({
 
   // Helper for Vertical Bar Chart (Alerts by Sector)
   const renderSectorBarChart = () => {
+    if (!sectorBars || sectorBars.length === 0) {
+      return (
+        <div style={{ height: 135, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--sys-text-muted, #94a3b8)', fontSize: '13px' }}>
+          No sector data
+        </div>
+      );
+    }
     const width = 280;
     const height = 135;
     const padLeft = 24;
@@ -889,12 +755,12 @@ export default function EventsAlertsPage({
                         <td className="events-col-loc">{evt.location}</td>
                         <td className="events-col-conf">{evt.confidence}%</td>
                         <td>
-                          <span className={`events-severity-badge ${evt.severity.toLowerCase()}`}>
+                          <span className={`events-severity-badge ${(evt.severity || 'Low').toLowerCase()}`}>
                             ▲ {evt.severity}
                           </span>
                         </td>
                         <td>
-                          <span className={`events-status-badge ${evt.status.toLowerCase()}`}>
+                          <span className={`events-status-badge ${(evt.status || 'Active').toLowerCase()}`}>
                             {evt.status}
                           </span>
                         </td>
@@ -973,7 +839,7 @@ export default function EventsAlertsPage({
               <h3 className="events-panel-title">Event Details</h3>
             </div>
             {selectedEvent && (
-              <span className={`events-severity-badge ${selectedEvent.severity.toLowerCase()}`}>
+              <span className={`events-severity-badge ${(selectedEvent.severity || 'Low').toLowerCase()}`}>
                 ▲ {selectedEvent.severity} Severity
               </span>
             )}
@@ -1000,17 +866,36 @@ export default function EventsAlertsPage({
                 </div>
 
                 <div className="events-snapshot-img-box">
-                  <img
-                    src={selectedEvent.snapshot_path || '/evidence/evidence_CAM-03_fence.jpg'}
-                    alt="Event snapshot detection"
-                    onError={(e) => {
-                      e.target.src = '/evidence/evidence_CAM-01_13_1.jpg';
-                    }}
-                  />
-                  {/* Bounding Box Simulation */}
-                  <div className="events-bbox-tag">
-                    <span className="bbox-label">{selectedEvent.object_class || 'person'} 0.{selectedEvent.confidence}</span>
-                  </div>
+                  {selectedEvent?.snapshot_path ? (
+                    <>
+                      <img
+                        src={selectedEvent.snapshot_path}
+                        alt="Event snapshot detection"
+                        onError={(e) => {
+                          e.target.style.display = 'none';
+                          const p = e.target.parentElement;
+                          if (p) {
+                            const errDiv = p.querySelector('.snapshot-err-box');
+                            if (errDiv) errDiv.style.display = 'flex';
+                          }
+                        }}
+                      />
+                      <div className="snapshot-err-box" style={{ display: 'none', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', padding: '24px', background: 'rgba(15,23,42,0.6)' }}>
+                        <Camera size={32} style={{ opacity: 0.4, marginBottom: '8px' }} />
+                        <span style={{ fontSize: '12px', fontWeight: 600 }}>SNAPSHOT FILE UNAVAILABLE</span>
+                        <span style={{ fontSize: '10px', opacity: 0.7 }}>File not found on storage mount</span>
+                      </div>
+                      <div className="events-bbox-tag">
+                        <span className="bbox-label">{selectedEvent.object_class || 'person'} 0.{selectedEvent.confidence}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="no-snapshot-placeholder" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: 'var(--text-secondary)', padding: '24px', background: 'rgba(15,23,42,0.6)' }}>
+                      <Camera size={32} style={{ opacity: 0.4, marginBottom: '8px' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 600 }}>NO EVIDENCE SNAPSHOT</span>
+                      <span style={{ fontSize: '10px', opacity: 0.7 }}>Awaiting optical capture verification</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Video Play Controls Bar */}
@@ -1061,7 +946,7 @@ export default function EventsAlertsPage({
                 <div className="events-meta-row">
                   <span className="meta-label">Status</span>
                   <span className="meta-colon">:</span>
-                  <span className={`events-status-tag ${selectedEvent.status.toLowerCase()}`}>
+                  <span className={`events-status-tag ${(selectedEvent.status || 'Active').toLowerCase()}`}>
                     {selectedEvent.status}
                   </span>
                 </div>
