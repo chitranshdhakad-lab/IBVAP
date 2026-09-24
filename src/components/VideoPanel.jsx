@@ -258,6 +258,7 @@ export default function VideoPanel({
 
     const formData = new FormData();
     formData.append('file', file);
+    formData.append('camera_id', activeCameraId || 'CAM-01');
 
     setUploading(true);
     setUploadMessage(`Uploading ${file.name}...`);
@@ -288,6 +289,7 @@ export default function VideoPanel({
       alert(`Video upload error: ${err.message}`);
     } finally {
       setUploading(false);
+      if (e.target) e.target.value = '';
     }
   };
 

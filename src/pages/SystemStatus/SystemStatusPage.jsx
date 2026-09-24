@@ -142,11 +142,8 @@ export default function SystemStatusPage({ cameras = [] }) {
     }
   };
 
-  // 2. Clear Logs
-  const handleClearLogs = async () => {
-    if (!window.confirm('Are you sure you want to clear system diagnostic logs? Critical alerts will remain intact.')) {
-      return;
-    }
+  // 2. Clear Logs (with non-blocking confirmation modal)
+  const handleConfirmClearLogs = async () => {
     setActionLoading('clear-logs');
     try {
       const res = await fetch('/api/system/actions/clear-logs', { method: 'POST' });
@@ -164,6 +161,7 @@ export default function SystemStatusPage({ cameras = [] }) {
       showToast('Error communicating with backend service', 'error');
     } finally {
       setActionLoading(null);
+      setActiveModal(null);
     }
   };
 
@@ -872,17 +870,17 @@ export default function SystemStatusPage({ cameras = [] }) {
               disabled={actionLoading !== null}
             >
               <RefreshCw size={17} className={actionLoading === 'restart-ai' ? 'spinning' : ''} />
-              <span>Restart AI Service</span>
+              <span>{actionLoading === 'restart-ai' ? 'Restarting...' : 'Restart AI Service'}</span>
             </button>
 
             {/* 2. Clear Logs */}
             <button
               className="sys-quick-btn red"
-              onClick={handleClearLogs}
+              onClick={() => setActiveModal('clear-logs')}
               disabled={actionLoading !== null}
             >
               <Trash2 size={17} className={actionLoading === 'clear-logs' ? 'spinning' : ''} />
-              <span>Clear Logs</span>
+              <span>{actionLoading === 'clear-logs' ? 'Clearing...' : 'Clear Logs'}</span>
             </button>
 
             {/* 3. Reboot System */}
@@ -902,7 +900,7 @@ export default function SystemStatusPage({ cameras = [] }) {
               disabled={actionLoading !== null}
             >
               <Database size={17} className={actionLoading === 'backup-db' ? 'spinning' : ''} />
-              <span>Backup Database</span>
+              <span>{actionLoading === 'backup-db' ? 'Backing up...' : 'Backup Database'}</span>
             </button>
 
             {/* 5. Test Camera Feeds */}
@@ -912,7 +910,7 @@ export default function SystemStatusPage({ cameras = [] }) {
               disabled={actionLoading !== null}
             >
               <Video size={17} className={actionLoading === 'test-cameras' ? 'spinning' : ''} />
-              <span>Test Camera Feeds</span>
+              <span>{actionLoading === 'test-cameras' ? 'Testing...' : 'Test Camera Feeds'}</span>
             </button>
 
             {/* 6. Check Updates */}
@@ -922,7 +920,7 @@ export default function SystemStatusPage({ cameras = [] }) {
               disabled={actionLoading !== null}
             >
               <CloudDownload size={17} className={actionLoading === 'check-updates' ? 'spinning' : ''} />
-              <span>Check Updates</span>
+              <span>{actionLoading === 'check-updates' ? 'Checking...' : 'Check Updates'}</span>
             </button>
           </div>
         </div>
@@ -980,7 +978,7 @@ export default function SystemStatusPage({ cameras = [] }) {
 
               <button
                 className="sys-modal-action-btn red"
-                onClick={handleClearLogs}
+                onClick={() => setActiveModal('clear-logs')}
                 disabled={actionLoading === 'clear-logs'}
               >
                 <Trash2 size={14} /> Clear Logs
@@ -1037,7 +1035,72 @@ export default function SystemStatusPage({ cameras = [] }) {
         </div>
       )}
 
-      {/* MODAL 2: REBOOT SYSTEM CONFIRMATION */}
+      {/* MODAL 2: CLEAR LOGS CONFIRMATION */}
+      {activeModal === 'clear-logs' && (
+        <div className="sys-modal-backdrop" onClick={() => actionLoading !== 'clear-logs' && setActiveModal(null)}>
+          <div className="sys-modal-card" onClick={(e) => e.stopPropagation()}>
+            <div className="sys-modal-header">
+              <div className="sys-modal-header-left">
+                <button
+                  className="btn-back"
+                  onClick={() => setActiveModal(null)}
+                  disabled={actionLoading === 'clear-logs'}
+                >
+                  <ArrowLeft size={16} /> Back
+                </button>
+                <h3 className="sys-modal-title">Clear System Diagnostic Logs</h3>
+              </div>
+              <button
+                className="sys-modal-close"
+                onClick={() => setActiveModal(null)}
+                disabled={actionLoading === 'clear-logs'}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="sys-modal-body">
+              <div className="sys-reboot-confirm-box">
+                <div className="sys-warning-icon">
+                  <Trash2 size={36} color="#ef4444" />
+                </div>
+                <h4>Clear non-critical diagnostic logs?</h4>
+                <p>
+                  This action will permanently purge routine diagnostic and operational history from the database.
+                  Critical security alerts and audit breadcrumbs will be safely retained.
+                </p>
+              </div>
+            </div>
+
+            <div className="sys-modal-footer">
+              <button
+                className="btn-secondary"
+                onClick={() => setActiveModal(null)}
+                disabled={actionLoading === 'clear-logs'}
+              >
+                <ArrowLeft size={14} /> Back / Cancel
+              </button>
+              <button
+                className="btn-primary-danger"
+                onClick={handleConfirmClearLogs}
+                disabled={actionLoading === 'clear-logs'}
+              >
+                {actionLoading === 'clear-logs' ? (
+                  <>
+                    <RefreshCw size={15} className="spinning" /> Clearing...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={15} /> Confirm & Clear Logs
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: REBOOT SYSTEM CONFIRMATION */}
       {activeModal === 'reboot' && (
         <div className="sys-modal-backdrop" onClick={() => !rebooting && setActiveModal(null)}>
           <div className="sys-modal-card" onClick={(e) => e.stopPropagation()}>

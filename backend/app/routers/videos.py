@@ -1,14 +1,17 @@
 import os
 import shutil
 import cv2
+import logging
 from typing import List, Optional
-from fastapi import APIRouter, Depends, UploadFile, File, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from sqlalchemy.orm import Session
 from app.config import VIDEOS_DIR, PROJECT_ROOT
 from app.database import get_db
 from app.models import Video
 from app.schemas import VideoOut
 from app.services.job_manager import job_manager
+
+logger = logging.getLogger("surveillance.videos")
 
 router = APIRouter(prefix="/videos", tags=["Videos"])
 
@@ -181,48 +184,148 @@ def delete_video(video_id: str, db: Session = Depends(get_db)):
     return {"status": "DELETED", "filename": filename, "message": f"Video {filename} permanently deleted from disk and database."}
 
 @router.post("/upload")
-async def upload_video(file: UploadFile = File(...), db: Session = Depends(get_db)):
-    file_path = VIDEOS_DIR / file.filename
-    with open(file_path, "wb") as buffer:
-        shutil.copyfileobj(file.file, buffer)
+async def upload_video(
+    file: UploadFile = File(...),
+    camera_id: Optional[str] = Form("CAM-01"),
+    db: Session = Depends(get_db)
+):
+    from pathlib import Path
+    import gc
+    import time
+    import uuid
+    from app.services.surveillance_service import surveillance_service
 
-    # Also copy to frontend public/videos for direct HTML5 video playback
+    if not file or not file.filename:
+        raise HTTPException(status_code=400, detail="No video file provided for upload.")
+
+    # 1. Sanitize file name (remove Windows path prefixes like C:\fakepath\ and illegal chars)
+    raw_name = file.filename
+    clean_name = os.path.basename(raw_name.replace('\\', '/')).strip()
+    clean_name = "".join(c for c in clean_name if c not in '<>:"/\\|?*')
+    if not clean_name:
+        clean_name = f"video_{int(time.time())}.mp4"
+
+    # 2. Check supported video extension
+    allowed_exts = ('.mp4', '.avi', '.mov', '.mkv', '.webm')
+    if not clean_name.lower().endswith(allowed_exts):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported format '{clean_name}'. Supported formats: MP4, AVI, MOV, MKV, WEBM."
+        )
+
+    VIDEOS_DIR.mkdir(parents=True, exist_ok=True)
+    target_path = VIDEOS_DIR / clean_name
+
+    # 3. If file currently matches an active camera feed, stop surveillance session and release locks
+    for cam in list(surveillance_service._selected_videos.keys()):
+        if surveillance_service._selected_videos.get(cam) == clean_name:
+            surveillance_service.stop_session(cam)
+    active_analysis_tasks.pop(clean_name, None)
+    gc.collect()
+    time.sleep(0.05)
+
+    # 4. Write stream to temporary file first (safe from partial writes and existing file locks)
+    temp_filename = f"tmp_{uuid.uuid4().hex[:8]}_{clean_name}"
+    temp_path = VIDEOS_DIR / temp_filename
+    try:
+        with open(temp_path, "wb") as buffer:
+            while chunk := await file.read(1024 * 1024):
+                buffer.write(chunk)
+    except Exception as read_err:
+        if temp_path.exists():
+            try:
+                temp_path.unlink()
+            except Exception:
+                pass
+        raise HTTPException(status_code=500, detail=f"Failed to stream video upload: {read_err}")
+
+    # 5. Atomically move / replace into target location with retry loop for Windows file locks
+    final_filename = clean_name
+    final_path = target_path
+    moved = False
+
+    for attempt in range(5):
+        try:
+            if final_path.exists():
+                try:
+                    os.replace(str(temp_path), str(final_path))
+                    moved = True
+                    break
+                except PermissionError:
+                    gc.collect()
+                    time.sleep(0.1 * (attempt + 1))
+            else:
+                temp_path.rename(final_path)
+                moved = True
+                break
+        except Exception:
+            gc.collect()
+            time.sleep(0.1)
+
+    # If file was permanently locked by an external process, fall back to unique name
+    if not moved or not final_path.exists():
+        stem = Path(clean_name).stem
+        suffix = Path(clean_name).suffix
+        unique_name = f"{stem}_{int(time.time())}{suffix}"
+        final_filename = unique_name
+        final_path = VIDEOS_DIR / final_filename
+        try:
+            temp_path.rename(final_path)
+            moved = True
+        except Exception as ren_err:
+            if temp_path.exists():
+                try:
+                    temp_path.unlink()
+                except Exception:
+                    pass
+            raise HTTPException(status_code=500, detail=f"Failed to finalize uploaded video on disk: {ren_err}")
+
+    # 6. Copy to frontend public/videos for direct HTML5 video playback
     public_videos_dir = PROJECT_ROOT / "public" / "videos"
     public_videos_dir.mkdir(parents=True, exist_ok=True)
     try:
-        shutil.copy2(str(file_path), str(public_videos_dir / file.filename))
-    except Exception:
-        pass
+        shutil.copy2(str(final_path), str(public_videos_dir / final_filename))
+    except Exception as copy_err:
+        logger.warning(f"Could not mirror uploaded video to public/videos: {copy_err}")
 
-    dur, res, fps, frames = get_video_metadata(str(file_path))
+    # 7. Extract video metadata
+    dur, res, fps, frames = get_video_metadata(str(final_path))
 
-    existing = db.query(Video).filter(Video.filename == file.filename).first()
-    if existing:
-        existing.duration = dur
-        existing.resolution = res
-        existing.fps = fps
-        existing.total_frames = frames
-        existing.filepath = str(file_path)
-        existing.processing_status = "IDLE"
-        db.commit()
-        db.refresh(existing)
-        target_video = existing
-    else:
-        target_video = Video(
-            filename=file.filename,
-            filepath=str(file_path),
-            duration=dur,
-            resolution=res,
-            fps=fps,
-            camera_id="CAM-01",
-            processing_status="IDLE",
-            total_frames=frames
-        )
-        db.add(target_video)
-        db.commit()
-        db.refresh(target_video)
+    # 8. Upsert in database with transactional rollback safety
+    assigned_cam = camera_id or ("CAM-01" if "01" in final_filename or "Border" in final_filename else "CAM-02")
+    try:
+        existing = db.query(Video).filter(Video.filename == final_filename).first()
+        if existing:
+            existing.duration = dur
+            existing.resolution = res
+            existing.fps = fps
+            existing.total_frames = frames
+            existing.filepath = str(final_path)
+            existing.processing_status = "READY"
+            if camera_id:
+                existing.camera_id = assigned_cam
+            db.commit()
+            db.refresh(existing)
+            target_video = existing
+        else:
+            target_video = Video(
+                filename=final_filename,
+                filepath=str(final_path),
+                duration=dur,
+                resolution=res,
+                fps=fps,
+                camera_id=assigned_cam,
+                processing_status="READY",
+                total_frames=frames
+            )
+            db.add(target_video)
+            db.commit()
+            db.refresh(target_video)
+    except Exception as db_err:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Database record save failed: {db_err}")
 
-    # Initialize job state for the newly registered video
+    # 9. Initialize job manager state
     job_manager.active_video_id = str(target_video.id)
     job_manager.active_video_filename = target_video.filename
     job_manager.status = "READY"

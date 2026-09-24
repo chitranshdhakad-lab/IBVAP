@@ -9013,34 +9013,35 @@ body.theme-tactical-light {
 /* Toast Notifications */
 .sys-toast {
   position: fixed;
-  top: 20px;
-  right: 24px;
-  z-index: 2000;
+  top: 72px;
+  right: 28px;
+  z-index: 99999;
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 12px 20px;
   border-radius: 8px;
-  font-size: 12.5px;
+  font-size: 13px;
   font-weight: 600;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
-  animation: sysSlideIn 0.25s ease-out;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 0 15px rgba(0, 0, 0, 0.3);
+  animation: sysSlideIn 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  backdrop-filter: blur(8px);
 }
 
 .sys-toast.success {
-  background: #065f46;
+  background: #064e3b;
   color: #ecfdf5;
   border: 1px solid #10b981;
 }
 
 .sys-toast.error {
-  background: #991b1b;
+  background: #7f1d1d;
   color: #fef2f2;
   border: 1px solid #ef4444;
 }
 
 @keyframes sysSlideIn {
-  from { transform: translateY(-12px); opacity: 0; }
+  from { transform: translateY(-16px); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
 
