@@ -289,7 +289,7 @@ export default function Dashboard() {
   };
 
   // Analysis Toggle Handler
-  const handleToggleAnalysis = async (speedMode = 'fast') => {
+  const handleToggleAnalysis = async (speedMode = 'realtime') => {
     const isCurrentlyRunning = Boolean(analysisActive || jobStatus === 'RUNNING');
     if (isCurrentlyRunning) {
       if (sendCommand) {
@@ -305,7 +305,7 @@ export default function Dashboard() {
         console.warn('Analysis stop request error', err);
       }
     } else {
-      const mode = typeof speedMode === 'string' ? speedMode : 'fast';
+      const mode = typeof speedMode === 'string' ? speedMode : 'realtime';
       try {
         await fetch('/api/analysis/start', {
           method: 'POST',
@@ -445,11 +445,7 @@ export default function Dashboard() {
               onVideoDeleted={handleVideoDeleted}
               onStartAnalysis={(vid) => {
                 setSelectedVideo(vid);
-                sendCommand({
-                  action: 'start_analysis',
-                  video: vid,
-                  camera_id: selectedCamera
-                });
+                handleToggleAnalysis('realtime');
               }}
               onStopAnalysis={() => {
                 sendCommand({ action: 'stop_analysis' });

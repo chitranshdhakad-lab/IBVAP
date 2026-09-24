@@ -100,12 +100,21 @@ export default function VideoPanel({
   // Forcing seeks on the <video> element during analysis causes the browser decoder to
   // reset on every WebSocket packet (~5-10x/sec), which produces the 'vibrating frame' artifact.
 
-  // Turn off starting spinner once analysis is confirmed active
+  // Turn off starting spinner once analysis is confirmed active & sync video playback
   useEffect(() => {
     if (isAnalyzing) {
       setIsStarting(false);
+      if (videoRef.current && videoRef.current.paused) {
+        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
+    } else {
+      setIsStarting(false);
+      if (videoRef.current && !videoRef.current.paused && jobStatus === 'STOPPED') {
+        videoRef.current.pause();
+        setIsPlaying(false);
+      }
     }
-  }, [isAnalyzing]);
+  }, [isAnalyzing, jobStatus]);
 
   const handleVideoError = () => {
     const err = videoRef.current?.error;
@@ -165,8 +174,11 @@ export default function VideoPanel({
     if (!isAnalyzing) {
       // Starting analysis: show starting status and trigger pipeline
       setIsStarting(true);
-      // Safety timeout: reset starting flag after 3s if no backend packet
-      setTimeout(() => setIsStarting(false), 3000);
+      // Safety timeout: reset starting flag after 2.5s if no backend packet
+      setTimeout(() => setIsStarting(false), 2500);
+      if (videoRef.current) {
+        videoRef.current.play().then(() => setIsPlaying(true)).catch(() => {});
+      }
     } else {
       // Stopping analysis: cleanly pause video element if present
       setIsStarting(false);
@@ -178,7 +190,7 @@ export default function VideoPanel({
       }
     }
     if (onToggleAnalysis) {
-      onToggleAnalysis();
+      onToggleAnalysis('realtime');
     }
   };
 
@@ -258,7 +270,7 @@ export default function VideoPanel({
 
     const formData = new FormData();
     formData.append('file', file);
-    formData.append('camera_id', activeCameraId || 'CAM-01');
+    formData.append('camera_id', selectedCamera || 'CAM-01');
 
     setUploading(true);
     setUploadMessage(`Uploading ${file.name}...`);
@@ -382,7 +394,7 @@ export default function VideoPanel({
         type="file"
         ref={fileInputRef}
         onChange={handleFileSelected}
-        accept=".mp4,.avi,.mov,.mkv"
+        accept=".mp4,.avi,.mov,.mkv,video/mp4,video/avi,video/quicktime,video/x-matroska"
         style={{ display: 'none' }}
       />
 
@@ -623,7 +635,7 @@ export default function VideoPanel({
                 {t('reconnectStream')}
               </button>
             </div>
-          ) : analysisMode === 'analysis' && isAnalyzing ? (
+          ) : !videoSrc && analysisMode === 'analysis' && isAnalyzing ? (
             <img
               key={`stream-${selectedCamera}`}
               src={`/api/analysis/stream/${selectedCamera}?video=${encodeURIComponent(selectedVideo || '')}`}
@@ -649,7 +661,7 @@ export default function VideoPanel({
                 onError={handleVideoError}
               />
               {/* Tactical AI Bounding Box HUD Overlay for Video Mode */}
-              {panelSettings.showDetectionBoxes && activeEntities && activeEntities.length > 0 && (
+              {analysisMode === 'analysis' && panelSettings.showDetectionBoxes && activeEntities && activeEntities.length > 0 && (
                 <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }}>
                   {activeEntities
                     .filter((ent) => {
@@ -679,9 +691,10 @@ export default function VideoPanel({
                             width,
                             height,
                             border: `2px solid ${color}`,
-                            boxShadow: `0 0 6px ${color}88`,
+                            boxShadow: `0 0 8px ${color}aa`,
                             borderRadius: '2px',
-                            boxSizing: 'border-box'
+                            boxSizing: 'border-box',
+                            transition: 'all 0.08s ease-out'
                           }}
                         >
                           <div style={{

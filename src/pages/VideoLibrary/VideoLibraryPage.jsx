@@ -118,8 +118,9 @@ export default function VideoLibraryPage({
             <Upload size={14} />
             {isUploading ? `${t('upload')}...` : `${t('upload')} Video`}
             <input
+              ref={dropzoneInputRef}
               type="file"
-              accept="video/mp4,video/avi,video/mov,video/mkv"
+              accept=".mp4,.avi,.mov,.mkv,video/mp4,video/avi,video/quicktime,video/x-matroska"
               onChange={handleFileUpload}
               disabled={isUploading}
               style={{ display: 'none' }}
