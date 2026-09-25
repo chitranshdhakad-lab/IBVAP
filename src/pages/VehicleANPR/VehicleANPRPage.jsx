@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 
 import { useTranslation } from '../../services/i18n.js';
+import { resolveMediaUrl } from '../../services/apiConfig.js';
 
 export default function VehicleANPRPage({ cameras = [] }) {
   const { t } = useTranslation();
@@ -551,7 +552,7 @@ export default function VehicleANPRPage({ cameras = [] }) {
               {inspectedPlate.crop_image_path && (
                 <div className="inspect-image-box">
                   <span className="image-box-title font-mono">{t('opticalPlateCrop')}</span>
-                  <img src={inspectedPlate.crop_image_path} alt="Plate crop" className="plate-crop-preview" />
+                  <img src={resolveMediaUrl(inspectedPlate.crop_image_path)} alt="Plate crop" className="plate-crop-preview" />
                 </div>
               )}
 

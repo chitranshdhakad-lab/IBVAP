@@ -3,7 +3,7 @@ import {
   Settings as SettingsIcon, Bell, Monitor, Video, Cpu, Database,
   Save, CheckCircle, AlertTriangle, BookOpen, RotateCcw, Volume2,
   Trash2, ShieldCheck, RefreshCw, FileText, Mail, MessageSquare,
-  Clock, Globe, Eye, EyeOff, Radio, Car, ShieldAlert
+  Clock, Globe, Eye, EyeOff, Radio, Car, ShieldAlert, Server
 } from 'lucide-react';
 import {
   getStoredSettings,
@@ -13,6 +13,7 @@ import {
   SENSITIVITY_MAP
 } from '../../services/settingsManager.js';
 import { useTranslation } from '../../services/i18n.js';
+import { getApiBase, setCustomBackendUrl } from '../../services/apiConfig.js';
 import HelpManualTab from './HelpManualTab.jsx';
 import OperatorsTab from './OperatorsTab.jsx';
 import { Users, User } from 'lucide-react';
@@ -37,6 +38,7 @@ export default function SettingsPage({ cameras = [] }) {
   const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview'); // 'overview', 'help', 'maintenance'
   const [settings, setSettings] = useState(getStoredSettings);
+  const [backendUrlInput, setBackendUrlInput] = useState(() => getApiBase());
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [soundTested, setSoundTested] = useState(false);
@@ -277,6 +279,31 @@ export default function SettingsPage({ cameras = [] }) {
                   onBlur={() => saveStoredSettings(settings)}
                   placeholder="IBVAP - Border Surveillance System"
                 />
+              </div>
+
+              <div className="field-block">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label className="field-label" style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Server size={13} color="#60a5fa" />
+                    <span>Cloud Backend API URL</span>
+                  </label>
+                  <span style={{ fontSize: '10px', color: '#60a5fa', fontWeight: 600, letterSpacing: '0.5px' }}>CLOUD SYNC</span>
+                </div>
+                <input
+                  type="text"
+                  className="field-input-text font-mono"
+                  value={backendUrlInput}
+                  onChange={(e) => setBackendUrlInput(e.target.value)}
+                  onBlur={() => {
+                    setCustomBackendUrl(backendUrlInput);
+                    setSaveSuccess(true);
+                    setTimeout(() => setSaveSuccess(false), 2000);
+                  }}
+                  placeholder="e.g. https://ibvap-backend.onrender.com (empty for local dev)"
+                />
+                <div style={{ marginTop: '4px', fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  When hosted on Vercel, paste your cloud backend URL (Render, Railway, Docker) here to sync video upload, analysis, and live WebSockets.
+                </div>
               </div>
 
               <div className="field-block">

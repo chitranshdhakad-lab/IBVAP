@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStoredSettings } from './settingsManager.js';
+import { getWsUrl } from './apiConfig.js';
 
 export function useSurveillanceWebSocket(cameraId = 'CAM-01') {
   const [isConnected, setIsConnected] = useState(false);
@@ -47,9 +48,7 @@ export function useSurveillanceWebSocket(cameraId = 'CAM-01') {
     setAnalysisActive(false);
 
     const connect = () => {
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.hostname || 'localhost';
-      const wsUrl = `${protocol}//${host}:8000/ws/live/${cameraId}`;
+      const wsUrl = getWsUrl(cameraId);
       try {
         const ws = new WebSocket(wsUrl);
         wsRef.current = ws;

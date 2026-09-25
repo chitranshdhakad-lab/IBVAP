@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Check, ShieldCheck, Camera } from 'lucide-react';
 import { useTranslation } from '../services/i18n.js';
+import { resolveMediaUrl } from '../services/apiConfig.js';
 
 export default function CurrentEvent({
   onViewClip,
@@ -65,7 +66,7 @@ export default function CurrentEvent({
     );
   }
 
-  const imageSrc = activeEvt.snapshot_path;
+  const imageSrc = resolveMediaUrl(activeEvt.snapshot_path);
 
   return (
     <div className="bottom-card">

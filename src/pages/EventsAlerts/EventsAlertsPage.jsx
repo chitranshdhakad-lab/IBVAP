@@ -7,6 +7,7 @@ import {
   ChevronLeft, ChevronRight, Filter, RefreshCw, Camera
 } from 'lucide-react';
 import { useTranslation } from '../../services/i18n.js';
+import { resolveMediaUrl } from '../../services/apiConfig.js';
 
 const EMPTY_DASHBOARD_DATA = {
   kpis: {
@@ -869,7 +870,7 @@ export default function EventsAlertsPage({
                   {selectedEvent?.snapshot_path ? (
                     <>
                       <img
-                        src={selectedEvent.snapshot_path}
+                        src={resolveMediaUrl(selectedEvent.snapshot_path)}
                         alt="Event snapshot detection"
                         onError={(e) => {
                           e.target.style.display = 'none';

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { getStoredSettings, subscribeSettings } from '../services/settingsManager.js';
 import { useTranslation } from '../services/i18n.js';
+import { resolveMediaUrl } from '../services/apiConfig.js';
 
 export default function VideoPanel({
   selectedCamera,
@@ -78,9 +79,10 @@ export default function VideoPanel({
     (v) => v.filename === selectedVideo || v.id === selectedVideo
   );
 
-  const videoSrc = currentVideoObj
+  const rawVideoSrc = currentVideoObj
     ? `/videos/${currentVideoObj.filename}`
     : (selectedVideo ? `/videos/${selectedVideo}` : '');
+  const videoSrc = resolveMediaUrl(rawVideoSrc);
 
   // Reset errors when video or camera switches
   useEffect(() => {
@@ -638,7 +640,7 @@ export default function VideoPanel({
           ) : analysisMode === 'analysis' && isAnalyzing ? (
             <img
               key={`stream-${selectedCamera}-${selectedVideo}`}
-              src={`/api/analysis/stream/${selectedCamera}?video=${encodeURIComponent(selectedVideo || '')}`}
+              src={resolveMediaUrl(`/api/analysis/stream/${selectedCamera}?video=${encodeURIComponent(selectedVideo || '')}`)}
               alt="Live Tactical CV Analysis Feed"
               className="video-media-layer"
               style={{ filter: panelSettings.nightModeEnhancement ? 'contrast(1.3) brightness(1.15) hue-rotate(65deg) saturate(0.85)' : 'none' }}

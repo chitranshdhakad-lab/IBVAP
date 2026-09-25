@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 
 import { useTranslation } from '../services/i18n.js';
+import { resolveMediaUrl } from '../services/apiConfig.js';
 
 export default function SnapshotModal({
   event,
@@ -31,8 +32,8 @@ export default function SnapshotModal({
     severity === 'high' ? t('levelHigh') :
     severity === 'medium' ? t('levelModerate') : t('levelLow');
 
-  const snapshotSrc = event.snapshot_path || event.snapshotUrl;
-  const cropSrc = event.crop_path || event.details?.crop_path;
+  const snapshotSrc = resolveMediaUrl(event.snapshot_path || event.snapshotUrl);
+  const cropSrc = resolveMediaUrl(event.crop_path || event.details?.crop_path);
 
   const handleDownload = () => {
     const a = document.createElement('a');

@@ -28,7 +28,7 @@ export default function SystemStatus({ onViewDetails, isConnected }) {
     let isMounted = true;
     const fetchStatus = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/system/status');
+        const res = await fetch('/api/system/status');
         if (res.ok && isMounted) {
           const data = await res.json();
           setTelemetry(data);
