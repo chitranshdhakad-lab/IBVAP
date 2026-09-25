@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS = {
   animalDetectionAlerts: true,
   vehicleAlerts: true,
   crossBorderMovementAlerts: true,
+  virtualFenceEnabled: true,
   weaponAlerts: true,     // From reference project: weapon detection alerts
   soundNotifications: true,
   emailNotifications: false,
@@ -102,6 +103,7 @@ export const toBackendPayload = (s) => ({
   vehicle_alerts: Boolean(s.vehicleAlerts),
   cross_border_alerts: Boolean(s.crossBorderMovementAlerts),
   border_line_enabled: Boolean(s.crossBorderMovementAlerts),
+  virtual_fence_enabled: Boolean(s.virtualFenceEnabled !== undefined ? s.virtualFenceEnabled : true),
   weapon_alerts: Boolean(s.weaponAlerts !== undefined ? s.weaponAlerts : true),
   sound_notifications: Boolean(s.soundNotifications),
   email_notifications: Boolean(s.emailNotifications),
@@ -148,6 +150,7 @@ export const fromBackendPayload = (b) => {
   if (b.animal_alerts !== undefined) patch.animalDetectionAlerts = b.animal_alerts;
   if (b.vehicle_alerts !== undefined) patch.vehicleAlerts = b.vehicle_alerts;
   if (b.cross_border_alerts !== undefined) patch.crossBorderMovementAlerts = b.cross_border_alerts;
+  if (b.virtual_fence_enabled !== undefined) patch.virtualFenceEnabled = b.virtual_fence_enabled;
   if (b.weapon_alerts !== undefined) patch.weaponAlerts = b.weapon_alerts;
   if (b.weapon_detection !== undefined) patch.weaponDetection = b.weapon_detection;
   if (b.face_detection !== undefined) patch.faceDetection = b.face_detection;

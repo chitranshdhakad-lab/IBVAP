@@ -635,15 +635,15 @@ export default function VideoPanel({
                 {t('reconnectStream')}
               </button>
             </div>
-          ) : !videoSrc && analysisMode === 'analysis' && isAnalyzing ? (
+          ) : analysisMode === 'analysis' && isAnalyzing ? (
             <img
-              key={`stream-${selectedCamera}`}
+              key={`stream-${selectedCamera}-${selectedVideo}`}
               src={`/api/analysis/stream/${selectedCamera}?video=${encodeURIComponent(selectedVideo || '')}`}
               alt="Live Tactical CV Analysis Feed"
               className="video-media-layer"
               style={{ filter: panelSettings.nightModeEnhancement ? 'contrast(1.3) brightness(1.15) hue-rotate(65deg) saturate(0.85)' : 'none' }}
               onError={() => {
-                console.warn('Analysis stream connection warning');
+                setStreamError('The annotated analysis stream could not be reached.');
               }}
             />
           ) : (

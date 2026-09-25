@@ -10,7 +10,7 @@ import numpy as np
 from app.config import settings, EVIDENCE_DIR, PROJECT_ROOT
 from app.database import SessionLocal
 from app.models import SecurityEvent, Alert, Detection as DetectionModel, Snapshot, Track
-from app.ai.detector import ObjectDetector, FaceDetector, PERSON_CLASSES, VEHICLE_CLASSES, ANIMAL_CLASSES, ALLOWED_SURVEILLANCE_CLASSES
+from app.ai.detector import ObjectDetector, WeaponDetector, FaceDetector, PERSON_CLASSES, VEHICLE_CLASSES, ANIMAL_CLASSES, ALLOWED_SURVEILLANCE_CLASSES
 from app.ai.tracker import MultiObjectTracker
 from app.ai.rule_engine import TacticalRuleEngine
 from app.ai.risk_engine import ThreatRiskEngine
@@ -22,9 +22,16 @@ logger = logging.getLogger("surveillance.ai.pipeline")
 from concurrent.futures import ThreadPoolExecutor
 _anpr_executor = ThreadPoolExecutor(max_workers=1)
 _anpr_inflight_tracks = set()
+_weapon_executor = ThreadPoolExecutor(max_workers=1)
 
 # In-memory stream buffer for live MJPEG streaming
 _latest_stream_frames: Dict[str, bytes] = {}
+
+# A fixed spatial grid lets an operator communicate a target location without
+# depending on pixel coordinates.  Cells are reported left-to-right, top-to-bottom
+# (A1 is top-left; C3 is bottom-right).
+GRID_ROWS = 3
+GRID_COLS = 3
 
 def update_stream_frame(camera_id: str, frame_bytes: bytes):
     _latest_stream_frames[camera_id] = frame_bytes
@@ -66,6 +73,9 @@ class SurveillancePipeline:
                 pass
 
         self.detector = ObjectDetector(confidence_threshold=conf)
+        self.weapon_detector = None
+        self._last_weapon_detections: List[Dict[str, Any]] = []
+        self._weapon_future = None
         self.tracker = MultiObjectTracker(max_age=max(25, int(fps_est * 1.2)), min_iou=0.20, max_center_dist=0.12)
         self.rule_engine = TacticalRuleEngine(debounce_seconds=debounce, loiter_threshold_seconds=loiter)
         self.risk_engine = ThreatRiskEngine()
@@ -92,6 +102,35 @@ class SurveillancePipeline:
                         update_stream_frame(self.camera_id, buf_j.tobytes())
                 cap_meta.release()
 
+    @staticmethod
+    def grid_cell_for_bbox(bbox) -> str:
+        """Return the stable 3x3 grid cell containing an object's ground anchor."""
+        x1, _y1, x2, y2 = bbox
+        x = min(0.999999, max(0.0, (float(x1) + float(x2)) / 2.0))
+        y = min(0.999999, max(0.0, float(y2)))
+        col = min(GRID_COLS - 1, int(x * GRID_COLS))
+        row = min(GRID_ROWS - 1, int(y * GRID_ROWS))
+        return f"{chr(ord('A') + row)}{col + 1}"
+
+    @staticmethod
+    def build_grid_counts(entities: List[Dict[str, Any]]) -> Dict[str, Dict[str, int]]:
+        """Count active targets by category in each grid cell."""
+        counts = {
+            f"{chr(ord('A') + row)}{col + 1}": {"persons": 0, "vehicles": 0, "animals": 0, "weapons": 0, "total": 0}
+            for row in range(GRID_ROWS) for col in range(GRID_COLS)
+        }
+        category_key = {"person": "persons", "vehicle": "vehicles", "animal": "animals", "weapon": "weapons"}
+        for entity in entities:
+            bbox = entity.get("bbox")
+            if not bbox or len(bbox) != 4:
+                continue
+            cell = SurveillancePipeline.grid_cell_for_bbox(bbox)
+            category = category_key.get(entity.get("category"))
+            if category:
+                counts[cell][category] += 1
+                counts[cell]["total"] += 1
+        return counts
+
     def draw_annotations(
         self,
         frame: np.ndarray,
@@ -108,7 +147,7 @@ class SurveillancePipeline:
             frame[:, :, 1] = np.clip(frame[:, :, 1] * 1.35, 0, 255).astype(np.uint8)
 
         # 1. Restricted Zone Polygon
-        if self.restricted_zone and active_cfg.get("restricted_zone_enabled", True):
+        if self.restricted_zone and active_cfg.get("virtual_fence_enabled", True) and active_cfg.get("restricted_zone_enabled", True):
             pts = np.array([[int(p[0] * w), int(p[1] * h)] for p in self.restricted_zone], np.int32)
             overlay = frame.copy()
             cv2.fillPoly(overlay, [pts], (30, 30, 220)) # Translucent red in BGR
@@ -117,13 +156,29 @@ class SurveillancePipeline:
             cv2.putText(frame, "RESTRICTED ZONE", (pts[0][0] + 8, pts[0][1] + 22), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (40, 40, 255), 2)
 
         # 2. Border Line (IB)
-        if self.border_line and active_cfg.get("border_line_enabled", True):
+        if self.border_line and active_cfg.get("virtual_fence_enabled", True) and active_cfg.get("border_line_enabled", True):
             bl_p1 = (int(self.border_line[0][0] * w), int(self.border_line[0][1] * h))
             bl_p2 = (int(self.border_line[1][0] * w), int(self.border_line[1][1] * h))
             cv2.line(frame, bl_p1, bl_p2, (34, 197, 94), 2) # Green in BGR
             cv2.putText(frame, "BORDER LINE (IB)", (max(10, bl_p2[0] - 180), bl_p2[1] - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (34, 197, 94), 2)
 
-        # 3. Tracked Objects (STRICTLY RESPECT show_detection_boxes setting)
+        # 3. Spatial reference grid.  It is rendered in the processed stream only,
+        # so original-video mode remains unmodified.
+        grid_color = (135, 135, 135)
+        for col in range(1, GRID_COLS):
+            x = int(w * col / GRID_COLS)
+            cv2.line(frame, (x, 0), (x, h), grid_color, 1, cv2.LINE_AA)
+        for row in range(1, GRID_ROWS):
+            y = int(h * row / GRID_ROWS)
+            cv2.line(frame, (0, y), (w, y), grid_color, 1, cv2.LINE_AA)
+        for row in range(GRID_ROWS):
+            for col in range(GRID_COLS):
+                label = f"{chr(ord('A') + row)}{col + 1}"
+                x = int(w * col / GRID_COLS) + 6
+                y = int(h * row / GRID_ROWS) + 18
+                cv2.putText(frame, label, (x, y), cv2.FONT_HERSHEY_SIMPLEX, 0.42, (210, 210, 210), 1, cv2.LINE_AA)
+
+        # 4. Tracked Objects (STRICTLY RESPECT show_detection_boxes setting)
         if active_cfg.get("show_detection_boxes", True):
             for det in tracked_detections:
                 cat = det.get("category", "person")
@@ -145,6 +200,7 @@ class SurveillancePipeline:
                 speed_str = det.get("speed", "Est. 0.0 px/s")
 
                 bbox = det.get("bbox", (0, 0, 0, 0))
+                grid_cell = self.grid_cell_for_bbox(bbox)
                 x1 = int(bbox[0] * w)
                 y1 = int(bbox[1] * h)
                 x2 = int(bbox[2] * w)
@@ -155,6 +211,8 @@ class SurveillancePipeline:
                     color = (38, 38, 230)  # Red for person
                 elif cat == "vehicle":
                     color = (34, 197, 94)  # Green for vehicle
+                elif cat == "weapon":
+                    color = (180, 40, 220)  # Magenta for weapon alert
                 else:
                     color = (20, 150, 220)  # Amber for animal
 
@@ -163,9 +221,9 @@ class SurveillancePipeline:
 
                 # Label Badge (STRICTLY RESPECT show_confidence_score setting)
                 if active_cfg.get("show_confidence_score", True):
-                    label = f"{cls_name} ID:{tid} ({conf}%)"
+                    label = f"{cls_name} ID:{tid} [{grid_cell}] ({conf}%)"
                 else:
-                    label = f"{cls_name} ID:{tid}"
+                    label = f"{cls_name} ID:{tid} [{grid_cell}]"
 
                 (lw, lh), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.45, 1)
                 cv2.rectangle(frame, (x1, max(0, y1 - 22)), (x1 + lw + 8, y1), color, -1)
@@ -240,7 +298,12 @@ class SurveillancePipeline:
         # Update dynamic YOLO confidence threshold from active settings
         if "yolo_confidence_threshold" in active_cfg:
             try:
-                self.detector.confidence_threshold = float(active_cfg["yolo_confidence_threshold"])
+                configured_threshold = float(active_cfg["yolo_confidence_threshold"])
+                # Small animals occupy few pixels in border footage. A high global
+                # threshold (the current DB was 0.50) discarded them before class
+                # filtering. Keep the detector inclusive when animal mode is on;
+                # the confidence is still sent to the operator with every result.
+                self.detector.confidence_threshold = min(configured_threshold, 0.25) if active_cfg.get("animal_detection", True) else configured_threshold
             except Exception:
                 pass
 
@@ -252,12 +315,25 @@ class SurveillancePipeline:
             allowed_classes.update(VEHICLE_CLASSES)
         if active_cfg.get("animal_detection", True):
             allowed_classes.update(ANIMAL_CLASSES)
-        if not allowed_classes:
-            allowed_classes = set(ALLOWED_SURVEILLANCE_CLASSES)
-
         # 1. YOLOv8 Pure Neural Detection (strictly real person, vehicle, and animal)
         t_infer_0 = time.time()
-        raw_detections = self.detector.detect(frame, allowed_classes=list(allowed_classes))
+        raw_detections = self.detector.detect(frame, allowed_classes=list(allowed_classes)) if allowed_classes else []
+        # COCO has no gun class. Run the heavier Open Images model in its own
+        # worker: a weapon scan must never pause the person/animal video stream.
+        if active_cfg.get("weapon_detection", False):
+            try:
+                if self._weapon_future and self._weapon_future.done():
+                    self._last_weapon_detections = self._weapon_future.result()
+                    self._weapon_future = None
+                if frame_idx % 10 == 0 and self._weapon_future is None:
+                    def run_weapon_scan(frame_copy):
+                        if self.weapon_detector is None:
+                            self.weapon_detector = WeaponDetector()
+                        return self.weapon_detector.detect(frame_copy)
+                    self._weapon_future = _weapon_executor.submit(run_weapon_scan, frame.copy())
+                raw_detections.extend(self._last_weapon_detections)
+            except Exception as weapon_error:
+                logger.warning("Weapon detector unavailable: %s", weapon_error)
         infer_ms = (time.time() - t_infer_0) * 1000.0
 
         for r_det in raw_detections:
@@ -285,20 +361,29 @@ class SurveillancePipeline:
                 continue
             if (cat == "animal" or raw_c in ANIMAL_CLASSES) and not active_cfg.get("animal_detection", True):
                 continue
-            if cat not in ["person", "vehicle", "animal"] and raw_c not in ALLOWED_SURVEILLANCE_CLASSES:
+            if cat not in ["person", "vehicle", "animal", "weapon"] and raw_c not in ALLOWED_SURVEILLANCE_CLASSES:
                 continue
             tracked_detections.append(det)
 
-        active_entities = [
-            e for e in self.tracker.get_active_entities()
-            if ((e.get("category") == "person" or e.get("class", "").lower() == "person") and active_cfg.get("person_detection", True)) or
-               ((e.get("category") == "vehicle" or e.get("class", "").lower() in VEHICLE_CLASSES) and active_cfg.get("vehicle_detection", True)) or
-               ((e.get("category") == "animal" or e.get("class", "").lower() in ANIMAL_CLASSES) and active_cfg.get("animal_detection", True))
-        ]
+        # Counters and grid positions must describe objects detected in this frame,
+        # rather than tracker predictions left over from an object that disappeared.
+        # The tracker still retains its short coasting state internally for ID recovery.
+        active_entities = []
+        for det in tracked_detections:
+            entity = dict(det)
+            entity["object_class"] = det.get("class", "unknown")
+            entity["bbox"] = list(det.get("bbox", (0, 0, 0, 0)))
+            active_entities.append(entity)
+        for entity in active_entities:
+            bbox = entity.get("bbox")
+            if bbox and len(bbox) == 4:
+                entity["grid_cell"] = self.grid_cell_for_bbox(bbox)
+        grid_counts = self.build_grid_counts(active_entities)
         counts = {
             "persons": sum(1 for e in active_entities if e.get("category") == "person" or e.get("class", "").lower() == "person") if active_cfg.get("person_detection", True) else 0,
             "vehicles": sum(1 for e in active_entities if e.get("category") == "vehicle" or e.get("class", "").lower() in VEHICLE_CLASSES) if active_cfg.get("vehicle_detection", True) else 0,
             "animals": sum(1 for e in active_entities if e.get("category") == "animal" or e.get("class", "").lower() in ANIMAL_CLASSES) if active_cfg.get("animal_detection", True) else 0,
+            "weapons": sum(1 for e in active_entities if e.get("category") == "weapon") if active_cfg.get("weapon_detection", False) else 0,
             "active_tracks": len(active_entities)
         }
 
@@ -331,13 +416,14 @@ class SurveillancePipeline:
                 dir_str = det.get("direction", "Stationary")
                 dwell_sec = float(str(det.get("dwell_time", "0")).split()[0])
 
+                virtual_fence_enabled = active_cfg.get("virtual_fence_enabled", True)
                 rule_res = self.rule_engine.evaluate(
                     tracking_id=tid,
                     bbox=bbox,
                     previous_bbox=det.get("previous_bbox"),
                     video_timestamp=video_timestamp,
-                    restricted_zone=self.restricted_zone,
-                    border_line=self.border_line,
+                    restricted_zone=self.restricted_zone if virtual_fence_enabled and active_cfg.get("restricted_zone_enabled", True) else None,
+                    border_line=self.border_line if virtual_fence_enabled and active_cfg.get("border_line_enabled", True) else None,
                     object_class=cls_name,
                     category=cat_name,
                     direction_str=dir_str,
@@ -349,9 +435,9 @@ class SurveillancePipeline:
                 det["distance_meters"] = rule_res.get("distance_meters", 999.0)
                 det["crossed_border"] = rule_res.get("crossed_border", False)
 
-                if rule_res["is_in_restricted_zone"] and active_cfg.get("restricted_zone_enabled", True):
+                if rule_res["is_in_restricted_zone"] and virtual_fence_enabled and active_cfg.get("restricted_zone_enabled", True):
                     any_zone_breach = True
-                if rule_res.get("crossed_border", False) and active_cfg.get("border_line_enabled", True):
+                if rule_res.get("crossed_border", False) and virtual_fence_enabled and active_cfg.get("border_line_enabled", True):
                     any_border_crossing = True
                 if rule_res.get("distance_meters", 999.0) < min_fence_dist:
                     min_fence_dist = rule_res.get("distance_meters", 999.0)
@@ -472,6 +558,8 @@ class SurveillancePipeline:
                         rule_res["should_alert"] = False
                     # Vehicle alert toggle check
                     elif (cat_name == "vehicle" or cls_name in VEHICLE_CLASSES) and not active_cfg.get("vehicle_alerts", True):
+                        rule_res["should_alert"] = False
+                    elif cat_name == "weapon" and not active_cfg.get("weapon_alerts", True):
                         rule_res["should_alert"] = False
 
                 if rule_res["should_alert"] and rule_res["event_type"]:
@@ -683,14 +771,16 @@ class SurveillancePipeline:
                 f"'tracked_detections': {len(tracked_detections)}}}"
             )
 
-        # Draw real annotations and update live stream frame buffer (optimized preview size)
+        # Preserve enough source detail to recognize small animals and weapons.
+        # Previously every feed was forcibly shrunk to 640 px and JPEG quality 70.
         annotated_frame = self.draw_annotations(frame.copy(), tracked_detections, video_timestamp)
-        if w > 640:
-            scale = 640.0 / w
-            preview_frame = cv2.resize(annotated_frame, (640, int(h * scale)), interpolation=cv2.INTER_LINEAR)
+        max_stream_width = 1280
+        if w > max_stream_width:
+            scale = max_stream_width / w
+            preview_frame = cv2.resize(annotated_frame, (max_stream_width, int(h * scale)), interpolation=cv2.INTER_AREA)
         else:
             preview_frame = annotated_frame
-        ret_enc, buf_enc = cv2.imencode('.jpg', preview_frame, [cv2.IMWRITE_JPEG_QUALITY, 70])
+        ret_enc, buf_enc = cv2.imencode('.jpg', preview_frame, [cv2.IMWRITE_JPEG_QUALITY, 90])
         if ret_enc:
             update_stream_frame(self.camera_id, buf_enc.tobytes())
 
@@ -707,8 +797,10 @@ class SurveillancePipeline:
                 "persons": counts["persons"],
                 "vehicles": counts["vehicles"],
                 "animals": counts["animals"],
+                "weapons": counts["weapons"],
                 "active_tracks": counts["active_tracks"]
             },
+            "grid_counts": grid_counts,
             "threat_assessment": threat_assessment,
             "active_entities": active_entities,
             "tracked_detections": tracked_detections,

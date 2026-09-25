@@ -56,11 +56,14 @@ class SurveillanceService:
 
     def select_video(self, camera_id: str, video_filename: str):
         prev = self._selected_videos.get(camera_id)
-        self._selected_videos[camera_id] = video_filename
-        job_manager.active_video_filename = video_filename
         if self.is_running(camera_id) and prev != video_filename:
             logger.info(f"Switching active surveillance stream for {camera_id} from {prev} to {video_filename}")
+            # start_session must compare against the previous selection before it
+            # is replaced; doing the assignment above made every switch a no-op.
             self.start_session(camera_id, video_filename, loop=False, frame_stride=None)
+        else:
+            self._selected_videos[camera_id] = video_filename
+            job_manager.active_video_filename = video_filename
 
     def _safe_create_task(self, coro):
         try:
@@ -83,16 +86,19 @@ class SurveillanceService:
     ):
         """Starts a continuous CV analysis session in the background."""
         chosen_video = video_filename or self.get_selected_video(camera_id)
-        self._selected_videos[camera_id] = chosen_video
-        job_manager.active_video_filename = chosen_video
+        previous_video = self._selected_videos.get(camera_id)
 
         # If already running the requested video on this camera, avoid duplicate cancellation
         if self.is_running(camera_id):
-            if self._selected_videos.get(camera_id) == chosen_video:
+            if previous_video == chosen_video:
                 logger.info(f"Session already running for {camera_id} on {chosen_video}, ignoring duplicate start request.")
                 return self._tasks.get(camera_id)
             self.stop_session(camera_id)
 
+        # Keep the old selection until after the comparison above.  Updating it first
+        # made every running session appear to already be using the newly selected file.
+        self._selected_videos[camera_id] = chosen_video
+        job_manager.active_video_filename = chosen_video
         self._is_paused[camera_id] = False
         task = self._safe_create_task(
             self._worker(camera_id, chosen_video, loop=loop, frame_stride=frame_stride, speed_mode=speed_mode)
@@ -221,7 +227,9 @@ class SurveillanceService:
         elif speed_mode == "fast":
             stride = max(2, round(fps / 10.0))
         else:  # "realtime"
-            stride = 2 if fps >= 20.0 else 1
+            # Never discard source frames in real-time mode.  Skipping every
+            # other frame was the direct cause of visibly jerky motion.
+            stride = 1
 
         speed_multiplier = 1.0 if speed_mode == "realtime" else (2.0 if speed_mode == "fast" else 4.0)
         target_delay = (stride / max(1.0, fps)) / speed_multiplier

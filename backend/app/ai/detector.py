@@ -32,6 +32,8 @@ def categorize_class(class_name: str) -> str:
 # ==============================================================================
 _GLOBAL_YOLO_MODEL = None
 _MODEL_LOCK = threading.Lock()
+_GLOBAL_WEAPON_MODEL = None
+_WEAPON_MODEL_LOCK = threading.Lock()
 
 def get_yolo_model(model_name_or_path: Optional[str] = None):
     """
@@ -211,7 +213,7 @@ class ObjectDetector:
     Guarantees genuine model inference using preloaded neural weights.
     Strictly filters for real person, vehicle, and animal detections.
     """
-    def __init__(self, confidence_threshold: float = 0.25, imgsz: int = 416):
+    def __init__(self, confidence_threshold: float = 0.25, imgsz: int = 512):
         self.confidence_threshold = confidence_threshold
         self.imgsz = imgsz
         self.model = None
@@ -365,3 +367,53 @@ class ObjectDetector:
             logger.warning(f"ByteTrack tracking exception: {e}. Falling back to standard YOLO detect.")
             return self.detect(frame, allowed_classes)
 
+
+class WeaponDetector:
+    """Optional Open Images detector for weapon classes absent from COCO weights."""
+    WEAPON_TERMS = ("gun", "handgun", "rifle", "shotgun", "pistol", "knife", "weapon")
+
+    def __init__(self, confidence_threshold: float = 0.30, imgsz: int = 512):
+        self.confidence_threshold = confidence_threshold
+        self.imgsz = imgsz
+        self.model = self._load_model()
+
+    @staticmethod
+    def _load_model():
+        global _GLOBAL_WEAPON_MODEL
+        with _WEAPON_MODEL_LOCK:
+            if _GLOBAL_WEAPON_MODEL is None:
+                model_path = MODELS_DIR / "yolov8n-oiv7.pt"
+                if not model_path.exists() or model_path.stat().st_size < 1_000_000:
+                    raise FileNotFoundError("Weapon-capable Open Images model is missing: yolov8n-oiv7.pt")
+                from ultralytics import YOLO
+                logger.info("Loading Open Images weapon detector once from %s", model_path)
+                _GLOBAL_WEAPON_MODEL = YOLO(str(model_path))
+        return _GLOBAL_WEAPON_MODEL
+
+    def detect(self, frame: np.ndarray) -> List[Dict[str, Any]]:
+        if frame is None or frame.size == 0:
+            return []
+        h, w = frame.shape[:2]
+        detections = []
+        try:
+            import torch
+            with torch.inference_mode():
+                results = self.model(frame, conf=self.confidence_threshold, imgsz=self.imgsz, verbose=False)
+            for result in results:
+                if result.boxes is None:
+                    continue
+                for box in result.boxes:
+                    class_name = str(self.model.names[int(box.cls[0].item())]).lower()
+                    if not any(term in class_name for term in self.WEAPON_TERMS):
+                        continue
+                    x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
+                    x1, x2 = max(0, min(w - 1, int(x1))), max(1, min(w, int(x2)))
+                    y1, y2 = max(0, min(h - 1, int(y1))), max(1, min(h, int(y2)))
+                    if x2 <= x1 or y2 <= y1:
+                        continue
+                    detections.append({"class": class_name, "raw_class": class_name, "category": "weapon",
+                        "confidence": round(float(box.conf[0].item()), 3),
+                        "bbox": (x1 / w, y1 / h, x2 / w, y2 / h), "pixel_bbox": (x1, y1, x2, y2)})
+        except Exception as exc:
+            logger.warning("Weapon inference failed: %s", exc)
+        return detections

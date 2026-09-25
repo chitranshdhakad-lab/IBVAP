@@ -513,6 +513,21 @@ export default function SettingsPage({ cameras = [] }) {
 
               <div className="setting-toggle-row">
                 <div>
+                  <span className="toggle-label">Virtual Fence</span>
+                  <span style={{ display: 'block', fontSize: '10.5px', color: settings.virtualFenceEnabled !== false ? '#4ade80' : '#94a3b8' }}>
+                    {settings.virtualFenceEnabled !== false
+                      ? 'Visible and armed: zone breaches and border crossings are evaluated.'
+                      : 'Disabled: fence lines are hidden and all fence-zone rules are paused.'}
+                  </span>
+                </div>
+                <ToggleSwitch
+                  checked={settings.virtualFenceEnabled !== false}
+                  onChange={(val) => updateField('virtualFenceEnabled', val)}
+                />
+              </div>
+
+              <div className="setting-toggle-row">
+                <div>
                   <span className="toggle-label">{t('showDetectionBoxes')}</span>
                   <span style={{ display: 'block', fontSize: '10.5px', color: settings.showDetectionBoxes ? '#4ade80' : '#94a3b8' }}>
                     {settings.showDetectionBoxes ? t('descBoxesOn') : t('descBoxesOff')}

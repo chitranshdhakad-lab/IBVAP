@@ -47,6 +47,7 @@ class SystemSettingsOut(BaseModel):
     event_cooldown_seconds: float
     restricted_zone_enabled: bool
     border_line_enabled: bool
+    virtual_fence_enabled: bool = True
     risk_weights: Dict[str, float]
 
     # AI Detection Classes
@@ -102,6 +103,7 @@ class SystemSettingsUpdate(BaseModel):
     event_cooldown_seconds: Optional[float] = None
     restricted_zone_enabled: Optional[bool] = None
     border_line_enabled: Optional[bool] = None
+    virtual_fence_enabled: Optional[bool] = None
     risk_weights: Optional[Dict[str, float]] = None
 
     # AI Detection Classes
@@ -217,4 +219,3 @@ class IntelligenceStatsOut(BaseModel):
     vehicles: int
     animals: int
     active_tracks: int
-

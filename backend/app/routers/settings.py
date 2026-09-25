@@ -20,6 +20,7 @@ DEFAULT_SETTINGS: Dict[str, Any] = {
     "event_cooldown_seconds": settings.DEFAULT_DEBOUNCE_SECONDS,
     "restricted_zone_enabled": True,
     "border_line_enabled": True,
+    "virtual_fence_enabled": True,
     "risk_weights": {
         "border_crossing": 45.0,
         "restricted_zone": 35.0,
@@ -174,6 +175,8 @@ def update_settings(updates: SystemSettingsUpdate, db: Session = Depends(get_db)
 
     if updates.border_line_enabled is not None:
         current["border_line_enabled"] = bool(updates.border_line_enabled)
+    if updates.virtual_fence_enabled is not None:
+        current["virtual_fence_enabled"] = bool(updates.virtual_fence_enabled)
 
     if updates.risk_weights is not None:
         current["risk_weights"] = updates.risk_weights
@@ -303,5 +306,4 @@ def purge_storage(db: Session = Depends(get_db)):
         db.rollback()
         logger.error(f"Storage purge error: {e}")
         return {"status": "error", "message": str(e)}
-
 

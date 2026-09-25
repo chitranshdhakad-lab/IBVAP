@@ -46,6 +46,7 @@ export default function ActiveTargetsLedger({
             const speed = ent.speed || 'Est. 12 px/s';
             const direction = ent.direction || 'Towards Fence';
             const dwell = ent.dwell_time || '2.4s';
+            const gridCell = ent.grid_cell || '—';
             const isBreaching = ent.is_breaching || direction.toLowerCase().includes('fence') || (threatAssessment?.score || 0) > 40;
 
             return (
@@ -88,6 +89,9 @@ export default function ActiveTargetsLedger({
                   <div className="metric-chip">
                     <Clock size={10} className="chip-icon" />
                     <span>{dwell}</span>
+                  </div>
+                  <div className="metric-chip">
+                    <span>GRID {gridCell}</span>
                   </div>
                 </div>
               </div>

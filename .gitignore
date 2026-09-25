@@ -52,6 +52,7 @@ temp/
 backend/storage/backups/
 *.pt
 *.onnx
+!backend/models/yolov8n-oiv7.pt
 
 # Local test screenshots in root
 *.png

@@ -161,8 +161,16 @@ class TacticalRuleEngine:
         severity = "Low"
         is_exit_event = False
 
+        # RULE 0: A weapon is actionable even before a fence-zone transition.
+        if category == "weapon" and state.last_event_type != "Weapon detected":
+            event_type = "Weapon detected"
+            severity = "Critical"
+            should_alert = True
+            state.last_alert_time = video_timestamp
+            state.last_event_type = event_type
+
         # RULE 1: Border Line Crossing (Critical Severity Priority)
-        if crossed_border and not state.has_crossed_border:
+        elif crossed_border and not state.has_crossed_border:
             state.has_crossed_border = True
             event_type = "Border crossing detected"
             severity = "Critical"
